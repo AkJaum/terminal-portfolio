@@ -1,0 +1,13 @@
+body {
+  background: #0d0d0d;
+  color: #00ff9c;
+  font-family: monospace;
+}
+
+input {
+  background: none;
+  border: none;
+  color: inherit;
+  outline: none;
+  font-family: inherit;
+}
