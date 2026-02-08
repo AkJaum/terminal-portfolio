@@ -50,7 +50,7 @@ This project showcases my programming background through a command-line interfac
 Clone the repository:
 
 ```bash
-git clone https://github.com/your-username/terminal-portfolio.git
+git clone https://github.com/akjaum/terminal-portfolio.git
 cd terminal-portfolio
 
 npm install
