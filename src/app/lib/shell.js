@@ -1,53 +1,43 @@
-import fs from "./file_system";
-import { ls, cat, cd, pwd, help, clear } from "./commands";
+import COMMANDS from "./commands";
 
-// Execute a shell command
-function runShellCommand(cmd, currentPath, setLines) {
-  const parts = cmd.trim().split(/\s+/);
-  const command = parts[0];
-  const args = parts.slice(1);
+async function runShellCommand(cmd, currentPath) {
+	const response = await fetch("/api/shell/execute", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			input: cmd,
+			currentPath,
+		}),
+	});
 
-  if (command === "ls")
-    return ls(fs, currentPath);
+	const payload = await response.json().catch(() => ({ error: "resposta inválida do servidor" }));
+	if (!response.ok) {
+		return { error: payload?.error || "erro ao executar comando" };
+	}
 
-  if (command === "cat")
-    return cat(fs, currentPath, args[0]);
-
-  if (command === "cd")
-    return cd(fs, currentPath, args[0]);
-
-  if (command === "pwd")
-    return pwd(fs, currentPath);
-
-  if (command === "help")
-    return help(args[0]);
-
-  if (command === "clear")
-    return clear();
-
-  return { output: "comando não encontrado" };
+	return payload;
 }
 
-function getCurrentDir(fs, path) {
-  let dir = fs;
-  for (const folder of path) {
-    if (!dir[folder]) return null;
-    dir = dir[folder];
-  }
-  return dir;
+function autocompleteCommand(input, commands = COMMANDS) {
+	return commands.filter((cmd) => cmd.startsWith(input));
 }
 
-function autocompleteCommand(input, commands) {
-  return commands.filter((cmd) => cmd.startsWith(input));
-}
+async function autocompletePath(input, currentPath) {
+	const response = await fetch("/api/fs/list", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ currentPath }),
+	});
 
-function autocompletePath(input, path) {
-  const dir = getCurrentDir(fs, path);
-  if (!dir) return [];
+	const payload = await response.json().catch(() => ({}));
+	if (!response.ok) return [];
 
-  return Object.keys(dir).filter((name) =>
-    name.startsWith(input)
-  );
+	const items = Array.isArray(payload?.items) ? payload.items : [];
+	return items.filter((name) => name.startsWith(input));
 }
 
 export { autocompleteCommand, autocompletePath };

@@ -1,0 +1,574 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+@keyframes windowPopIn {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 12px, 0) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes windowCloseOut {
+    from {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+    }
+    to {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0) scale(0.965);
+        filter: blur(2px);
+    }
+}
+
+@keyframes taskbarSlideIn {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes taskMenuPop {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes taskButtonAppear {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0) scale(0.84);
+        filter: blur(1px);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+    }
+}
+
+@keyframes taskButtonDisappear {
+    from {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+    }
+    to {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0) scale(0.82);
+        filter: blur(2px);
+    }
+}
+
+.container
+{
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.content
+{
+    flex: 1;
+    background-color: #08a3e0;
+    width: 100%;
+    padding: 18px;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.desktopGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 14px;
+    align-content: start;
+}
+
+.desktopItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 96px;
+    border-radius: 10px;
+    padding: 10px 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+    will-change: transform;
+}
+
+.desktopItem:hover {
+    transform: translate3d(0, -2px, 0);
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.desktopIcon {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.desktopLabel {
+    color: #ffffff;
+    text-align: center;
+    font-size: 0.85rem;
+    word-break: break-word;
+}
+
+.taskbar
+{
+    height: 56px;
+    flex-shrink: 0;
+    width: 100%;
+    background-color: #333;
+    display: flex;
+    flex: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 10px;
+    padding-right: 10px; 
+    transform: translate3d(0, 0, 0);
+    animation: taskbarSlideIn 0.26s ease-out;
+}
+
+.applications {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 70vw;
+    overflow: visible;
+    position: relative;
+}
+
+.taskButton {
+    background-color: #454545;
+    color: #fff;
+    border: 1px solid #707070;
+    width: 42px;
+    height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    transform: translate3d(0, 0, 0);
+}
+
+.taskButtonAppearing {
+    animation: taskButtonAppear 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.taskButtonClosing {
+    pointer-events: none;
+    animation: taskButtonDisappear 0.2s ease-in forwards;
+}
+
+.taskButton:hover {
+    transform: translate3d(0, -1px, 0);
+    background-color: #525a64;
+}
+
+.taskButtonActive {
+    background-color: #54606b;
+    border-color: #8ea6bb;
+    box-shadow: inset 0 -2px 0 rgba(120, 202, 255, 0.45);
+}
+
+.taskButtonIcon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.taskBadge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #a7d8ff;
+    color: #042034;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+}
+
+.taskGroup {
+    position: relative;
+}
+
+.taskMenu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    min-width: 220px;
+    max-height: 220px;
+    overflow: auto;
+    background: #2f3439;
+    border: 1px solid #4f5963;
+    border-radius: 8px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    padding: 6px;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: taskMenuPop 0.18s ease-out;
+}
+
+.taskMenuItem {
+    border: none;
+    border-radius: 6px;
+    background: #3a4047;
+    color: #fff;
+    padding: 7px 8px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+.taskMenuItem:hover {
+    background: #4a525b;
+}
+
+.button
+{
+    background-color: #555;
+    color: white;
+    border: none;
+    padding: 8px 8px;
+    margin: 0;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.clock {
+    font-size: 1rem;
+    color: white;
+    text-align: center;
+    margin: 20px;
+}
+
+:global(.windowFrame) {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 12px;
+    border: 1px solid rgba(10, 20, 28, 0.5);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    will-change: left, top, width, height, opacity, transform;
+    transition:
+        left 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+        top 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+        width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+        height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+        inset 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 0.2s ease,
+        opacity 0.2s ease;
+    animation: windowPopIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:global(.windowFrameResizing) {
+    transition: none;
+}
+
+:global(.windowFrameDragging) {
+    transition: none;
+}
+
+:global(.windowFrameClosing) {
+    pointer-events: none;
+    animation: windowCloseOut 0.18s ease-in forwards;
+}
+
+:global(.windowFrameMaximized) {
+    box-shadow: 0 12px 22px rgba(0, 0, 0, 0.22);
+}
+
+:global(.windowHeader) {
+    height: 38px;
+    background: linear-gradient(180deg, #dde4ea 0%, #c7d1da 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 12px;
+    border-bottom: 1px solid rgba(9, 15, 19, 0.25);
+    cursor: move;
+    user-select: none;
+}
+
+:global(.windowHeaderDragging) {
+    filter: brightness(0.97);
+}
+
+:global(.windowTitle) {
+    color: #243544;
+    font-size: 0.9rem;
+}
+
+:global(.windowActions) {
+    display: flex;
+    gap: 6px;
+}
+
+:global(.windowActions button) {
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    background: #f5f7fa;
+    color: #192734;
+    border-radius: 6px;
+    width: 28px;
+    height: 24px;
+    line-height: 1;
+    cursor: pointer;
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    will-change: transform;
+}
+
+:global(.windowActions button:hover) {
+    transform: translate3d(0, -1px, 0);
+    background: #ffffff;
+}
+
+:global(.windowBody) {
+    flex: 1;
+    background: #ffffff;
+    padding: 12px;
+    overflow: auto;
+}
+
+:global(.embeddedAppRoot) {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    display: flex;
+    background: #11151b;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #203244;
+}
+
+:global(.embeddedAppIframe) {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    background: #11151b;
+}
+
+:global(.windowResizeHandle) {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    touch-action: none;
+    z-index: 2;
+    background:
+        linear-gradient(135deg, transparent 0 58%, rgba(58, 78, 96, 0.28) 58% 64%, transparent 64% 100%),
+        linear-gradient(135deg, transparent 0 72%, rgba(58, 78, 96, 0.22) 72% 78%, transparent 78% 100%),
+        linear-gradient(135deg, transparent 0 86%, rgba(58, 78, 96, 0.18) 86% 92%, transparent 92% 100%);
+    opacity: 0.9;
+}
+
+:global(.windowResizeHandle:hover) {
+    opacity: 1;
+}
+
+:global(.gameWindowRoot) {
+    width: 100%;
+    height: 100%;
+    min-height: 360px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #02060a;
+    border: 1px solid #203244;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+:global(.gameViewportFrame) {
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+:global(.gameIframe) {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    background: #0f1720;
+}
+
+:global(.explorerRoot) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+:global(.explorerToolbar) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #243544;
+}
+
+:global(.explorerToolbar button) {
+    border: 1px solid #9aaab8;
+    background: #eff3f7;
+    color: #223443;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+:global(.explorerBackButton) {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+:global(.explorerToolbar button:disabled) {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+:global(.explorerLayout) {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(200px, 280px) 1fr;
+    gap: 10px;
+}
+
+:global(.explorerList) {
+    border: 1px solid #d0d8df;
+    border-radius: 8px;
+    padding: 8px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+:global(.explorerEntry) {
+    border: none;
+    background: #f3f7fb;
+    color: #1b2e3b;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    will-change: transform;
+}
+
+:global(.explorerEntry:hover) {
+    transform: translate3d(0, -1px, 0);
+    background: #e7eff8;
+}
+
+:global(.explorerPreview) {
+    margin: 0;
+    border: 1px solid #d0d8df;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fbfcfe;
+    color: #1d2f3c;
+    overflow: auto;
+    min-height: 0;
+}
+
+:global(.explorerEmpty) {
+    color: #50616d;
+    font-size: 0.85rem;
+    padding: 6px;
+}
+
+:global(.explorerContextMenu) {
+    position: fixed;
+    min-width: 220px;
+    padding: 6px;
+    border-radius: 8px;
+    background: #2f3439;
+    border: 1px solid #4f5963;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: taskMenuPop 0.18s ease-out;
+}
+
+:global(.explorerContextMenuItem) {
+    border: none;
+    border-radius: 6px;
+    background: #3a4047;
+    color: #fff;
+    padding: 8px 10px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+:global(.explorerContextMenuItem:hover) {
+    background: #4a525b;
+}
+
+:global(.explorerContextMenuHint) {
+    color: #b4c0c9;
+    font-size: 0.72rem;
+    padding: 0 4px 4px;
+    word-break: break-word;
+}

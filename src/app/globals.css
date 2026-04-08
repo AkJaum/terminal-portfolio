@@ -1,7 +1,21 @@
-body {
-  background: #0d0d0d;
-  color: #00ff9c;
+html, body {
+  background: #1e1f22;
+  color: #ffffff;
   font-family: monospace;
+  height: 100%;
+  padding: 5px 2px 2px 2px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.cursor {
+  animation: blink 1s step-start infinite;
+}
+
+[contenteditable]:empty:before {
+  content: '';
 }
 
 input {
@@ -10,4 +24,52 @@ input {
   color: inherit;
   outline: none;
   font-family: inherit;
+  margin-bottom: 20px;
+}
+
+.vimRoot {
+  border: 1px solid #2d3a46;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b0f14;
+}
+
+.vimHeader {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  color: #95a6b5;
+  background: #101a22;
+  border-bottom: 1px solid #23313f;
+}
+
+.vimBody {
+  margin: 0;
+  padding: 12px;
+  max-height: 64vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  tab-size: 4;
+  color: #d8e2ec;
+  line-height: 1.45;
+}
+
+.vimKeyword {
+  color: #77d0ff;
+  font-weight: 700;
+}
+
+.vimString {
+  color: #d6f5a3;
+}
+
+.vimNumber {
+  color: #ffcc7a;
+}
+
+.vimComment {
+  color: #6f879b;
+  font-style: italic;
 }

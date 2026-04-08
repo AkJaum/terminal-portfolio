@@ -1,0 +1,38 @@
+services:
+  project-runner:
+    build:
+      context: ./services/project-runner
+    container_name: terminal-app-project-runner
+    environment:
+      - PORT=8080
+      - WORKDIR_BASE=/tmp/runner-workspaces
+      - PROJECT_REPO_PUSH_SWAP=https://github.com/AkJaum/push_swap.git
+      - PROJECT_REPO_GET_NEXT_LINE=https://github.com/AkJaum/get_next_line.git
+      - PROJECT_REPO_PRINTF=https://github.com/AkJaum/ft_printf.git
+      - PROJECT_REPO_LIBFT=https://github.com/AkJaum/libft.git
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: terminal-app-web
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PROJECT_RUNNER_URL=http://project-runner:8080
+      - PROJECT_IDLE_CLEANUP_MS=60000
+    ports:
+      - "3000:3000"
+    depends_on:
+      project-runner:
+        condition: service_healthy
+    restart: unless-stopped
