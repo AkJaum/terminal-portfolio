@@ -2,11 +2,15 @@
 const filesystem = {
   home: {
     dungeon4fun: "launcher://dungeon4fun",
-    terminal: "launcher://terminal",
+    Terminal: "launcher://terminal",
     README: "__REF__:src/README.md",
     projects: {
       websites: {
-        "meusite.txt": "https://meusite.com",
+        "RegulamentaAI.web": "https://regulamentaai.com/",
+        "Wowlinette.web": "https://wowlinette.vercel.app/",
+        "Pink Palace.web": "https://pinkpalace.vercel.app/",
+        "Trabalho Acadêmico.web": "https://projeto-neurologia.vercel.app/",
+        "Quiz Administrativo.web": "https://empreendendo-minions-quiz.vercel.app/",
       },
       curriculum_42: {
         push_swap: {

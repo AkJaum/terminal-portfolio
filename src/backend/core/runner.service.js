@@ -140,6 +140,25 @@ export async function readFilePayloadAtPath(path, file) {
 
   const ext = String(file).split(".").pop()?.toLowerCase() || "";
   const content = String(resolveStaticFileReference(dir[file]) ?? "");
+
+  if (ext === "web") {
+    const rawUrl = content.trim();
+    if (!/^https?:\/\//i.test(rawUrl)) {
+      throw new Error("arquivo .web precisa conter uma URL http(s) válida");
+    }
+
+    return {
+      ok: true,
+      file,
+      kind: "web",
+      mimeType: "text/uri-list",
+      encoding: "utf-8",
+      url: rawUrl,
+      content: rawUrl,
+      message: null,
+    };
+  }
+
   const kind = file === "README" || ext === "md" ? "markdown" : CODE_EXTENSIONS.has(ext) ? "code" : "text";
 
   return {

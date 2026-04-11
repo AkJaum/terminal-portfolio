@@ -9,6 +9,7 @@ export const FILE_ICONS = {
   md: "📝",
   txt: "📄",
   html: "🌐",
+  web: "🌐",
   css: "🎨",
   c: "©️",
   h: "©️",
@@ -27,7 +28,7 @@ export const FILE_ICONS = {
 
 export function getFileIcon(name, isDir) {
   if (isDir) return "📁";
-  if (name === "terminal") return "🖥️";
+  if (name === "Terminal") return "🖥️";
   if (name === "dungeon4fun") return "🎮";
   if (name === "README") return "ℹ️";
   const ext = name.split(".").pop().toLowerCase();

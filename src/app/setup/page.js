@@ -1,12 +1,12 @@
 import { Suspense } from "react";
-import GUIClientPage from "./GUIClientPage";
+import SetupClientPage from "./SetupClientPage";
 
 export const dynamic = "force-dynamic";
 
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <GUIClientPage />
+      <SetupClientPage />
     </Suspense>
   );
 }
