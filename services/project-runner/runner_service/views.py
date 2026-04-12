@@ -3,9 +3,14 @@ import os
 import shutil
 import subprocess
 import base64
+import hmac
+import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import mkdtemp
+from threading import Lock
+from contextlib import contextmanager
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -15,6 +20,27 @@ WORKDIR_BASE = Path(os.getenv("WORKDIR_BASE", "/tmp/runner-workspaces"))
 MAX_FILE_SIZE_BYTES = int(
     os.getenv("MAX_FILE_SIZE_BYTES", str(8 * 1024 * 1024))
 )
+RUNNER_SHARED_TOKEN = os.getenv("RUNNER_SHARED_TOKEN", "").strip()
+MAX_REQUESTS_PER_ID_PER_MINUTE = int(
+    os.getenv("MAX_REQUESTS_PER_ID_PER_MINUTE", "120")
+)
+RATE_WINDOW_SECONDS = int(os.getenv("RATE_WINDOW_SECONDS", "60"))
+MAX_CONCURRENT_REQUESTS_PER_ID = int(
+    os.getenv("MAX_CONCURRENT_REQUESTS_PER_ID", "6")
+)
+MAX_GLOBAL_CONCURRENT_REQUESTS = int(
+    os.getenv("MAX_GLOBAL_CONCURRENT_REQUESTS", "64")
+)
+PENDING_REQUEST_TTL_SECONDS = int(
+    os.getenv("PENDING_REQUEST_TTL_SECONDS", "30")
+)
+MAX_OUTPUT_BYTES = int(os.getenv("MAX_OUTPUT_BYTES", str(256 * 1024)))
+BUILD_TIMEOUT_MS = int(os.getenv("BUILD_TIMEOUT_MS", "30000"))
+RUN_TIMEOUT_MS = int(os.getenv("RUN_TIMEOUT_MS", "10000"))
+MAX_BUILD_ARGS = int(os.getenv("MAX_BUILD_ARGS", "8"))
+MAX_RUN_ARGS = int(os.getenv("MAX_RUN_ARGS", "32"))
+
+logger = logging.getLogger("runner_service")
 
 PROJECTS = {
     "push_swap": {
@@ -56,6 +82,159 @@ CODE_EXTENSIONS = {
 }
 
 PROJECT_SESSIONS = {}
+RATE_LIMIT_STATE = {}
+INFLIGHT_STATE = {}
+SECURITY_LOCK = Lock()
+
+
+def _safe_internal_error(message="erro interno do servidor"):
+    return _json_error(message, 500)
+
+
+def _truncate_output(value):
+    text = value or ""
+    if len(text.encode("utf-8", errors="ignore")) <= MAX_OUTPUT_BYTES:
+        return text
+
+    encoded = text.encode("utf-8", errors="ignore")[:MAX_OUTPUT_BYTES]
+    truncated = encoded.decode("utf-8", errors="ignore")
+    return f"{truncated}\n\n[runner] saída truncada por limite de segurança"
+
+
+def _extract_client_id(request, body=None):
+    header_id = request.headers.get("X-Client-Id", "").strip()
+    if header_id:
+        return header_id[:128]
+
+    if isinstance(body, dict):
+        payload_id = body.get("clientId")
+        if isinstance(payload_id, str) and payload_id.strip():
+            return payload_id.strip()[:128]
+
+        project_id = body.get("projectId")
+        if isinstance(project_id, str) and project_id.strip():
+            return f"project:{project_id.strip()[:120]}"
+
+    forwarded = request.headers.get("X-Forwarded-For", "").strip()
+    if forwarded:
+        return f"ip:{forwarded.split(',')[0].strip()[:100]}"
+
+    remote_addr = request.META.get("REMOTE_ADDR", "unknown")
+    return f"ip:{str(remote_addr)[:100]}"
+
+
+def _is_authorized(request):
+    if not RUNNER_SHARED_TOKEN:
+        return True
+
+    token = request.headers.get("X-Runner-Token", "")
+    return hmac.compare_digest(token, RUNNER_SHARED_TOKEN)
+
+
+def _prune_stale_locked(now_monotonic):
+    stale_cutoff = now_monotonic - PENDING_REQUEST_TTL_SECONDS
+    stale_clients = []
+    for client_id, timestamps in list(INFLIGHT_STATE.items()):
+        active = [ts for ts in timestamps if ts >= stale_cutoff]
+        if active:
+            INFLIGHT_STATE[client_id] = active
+        else:
+            stale_clients.append(client_id)
+
+    for client_id in stale_clients:
+        INFLIGHT_STATE.pop(client_id, None)
+
+
+def _global_inflight_count_locked():
+    return sum(len(timestamps) for timestamps in INFLIGHT_STATE.values())
+
+
+def _enter_request_guard(client_id):
+    now_monotonic = time.monotonic()
+
+    with SECURITY_LOCK:
+        _prune_stale_locked(now_monotonic)
+
+        global_count = _global_inflight_count_locked()
+        if global_count >= MAX_GLOBAL_CONCURRENT_REQUESTS:
+            return None, _json_error(
+                (
+                    "houve um erro no servidor e "
+                    "o conteúdo não pode ser mostrado"
+                ),
+                503,
+            )
+
+        client_timestamps = INFLIGHT_STATE.get(client_id, [])
+        if len(client_timestamps) >= MAX_CONCURRENT_REQUESTS_PER_ID:
+            return None, _json_error(
+                (
+                    "muitas chamadas pendentes para este identificador; "
+                    "tente novamente"
+                ),
+                503,
+            )
+
+        bucket = RATE_LIMIT_STATE.get(client_id)
+        if not bucket:
+            bucket = {"window_start": now_monotonic, "count": 0}
+            RATE_LIMIT_STATE[client_id] = bucket
+
+        elapsed = now_monotonic - float(bucket["window_start"])
+        if elapsed >= RATE_WINDOW_SECONDS:
+            bucket["window_start"] = now_monotonic
+            bucket["count"] = 0
+
+        if bucket["count"] >= MAX_REQUESTS_PER_ID_PER_MINUTE:
+            return None, _json_error(
+                "limite de chamadas excedido para este identificador",
+                429,
+            )
+
+        bucket["count"] += 1
+        client_timestamps.append(now_monotonic)
+        INFLIGHT_STATE[client_id] = client_timestamps
+
+    return now_monotonic, None
+
+
+def _exit_request_guard(client_id, started_at):
+    with SECURITY_LOCK:
+        timestamps = INFLIGHT_STATE.get(client_id)
+        if not timestamps:
+            return
+
+        removed = False
+        for idx, timestamp in enumerate(timestamps):
+            if timestamp == started_at:
+                timestamps.pop(idx)
+                removed = True
+                break
+
+        if not removed and timestamps:
+            timestamps.pop(0)
+
+        if timestamps:
+            INFLIGHT_STATE[client_id] = timestamps
+        else:
+            INFLIGHT_STATE.pop(client_id, None)
+
+
+@contextmanager
+def _protected_request(request, body=None):
+    if not _is_authorized(request):
+        raise PermissionError("não autorizado")
+
+    client_id = _extract_client_id(request, body)
+    started_at, rejection = _enter_request_guard(client_id)
+    if rejection is not None:
+        yield rejection
+        return
+
+    try:
+        yield None
+    finally:
+        _exit_request_guard(client_id, started_at)
 
 
 def _parse_json_body(request):
@@ -183,7 +362,14 @@ def health(request):
 def list_projects(request):
     if request.method != "GET":
         return _json_error("método não permitido", 405)
-    return JsonResponse({"projects": list(PROJECTS.keys())})
+    try:
+        with _protected_request(request) as rejection:
+            if rejection is not None:
+                return rejection
+
+            return JsonResponse({"projects": list(PROJECTS.keys())})
+    except PermissionError:
+        return _json_error("não autorizado", 401)
 
 
 @csrf_exempt
@@ -200,26 +386,33 @@ def prepare_project(request):
         return _json_error("projectId é obrigatório")
 
     try:
-        workdir = _ensure_project_prepared(project_id)
-        items = [
-            {
-                "name": item.name,
-                "type": "dir" if item.is_dir() else "file",
-            }
-            for item in workdir.iterdir()
-        ]
-        return JsonResponse(
-            {
-                "ok": True,
-                "projectId": project_id,
-                "workdir": str(workdir),
-                "items": items,
-            }
-        )
+        with _protected_request(request, body) as rejection:
+            if rejection is not None:
+                return rejection
+
+            workdir = _ensure_project_prepared(project_id)
+            items = [
+                {
+                    "name": item.name,
+                    "type": "dir" if item.is_dir() else "file",
+                }
+                for item in workdir.iterdir()
+            ]
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "projectId": project_id,
+                    "workdir": str(workdir),
+                    "items": items,
+                }
+            )
+    except PermissionError:
+        return _json_error("não autorizado", 401)
     except KeyError:
         return _json_error("projeto não encontrado", 404)
-    except Exception as exc:
-        return _json_error(str(exc) or "erro ao preparar projeto", 500)
+    except Exception:
+        logger.exception("prepare_project failed")
+        return _safe_internal_error("erro ao preparar projeto")
 
 
 @csrf_exempt
@@ -236,30 +429,39 @@ def list_project_fs(request):
         return _json_error("projectId é obrigatório")
 
     try:
-        rel_path = _sanitize_relative_path(body.get("path", []))
-        workdir = _ensure_project_prepared(project_id)
-        target_dir = _resolve_inside_workdir(workdir, rel_path)
+        with _protected_request(request, body) as rejection:
+            if rejection is not None:
+                return rejection
 
-        if not target_dir.exists() or not target_dir.is_dir():
-            return _json_error("não é um diretório")
+            rel_path = _sanitize_relative_path(body.get("path", []))
+            workdir = _ensure_project_prepared(project_id)
+            target_dir = _resolve_inside_workdir(workdir, rel_path)
 
-        items = [
-            {
-                "name": item.name,
-                "type": "dir" if item.is_dir() else "file",
-            }
-            for item in target_dir.iterdir()
-        ]
-        return JsonResponse(
-            {
-                "ok": True,
-                "projectId": project_id,
-                "path": rel_path,
-                "items": items,
-            }
-        )
-    except Exception as exc:
-        return _json_error(str(exc) or "erro ao listar diretório", 500)
+            if not target_dir.exists() or not target_dir.is_dir():
+                return _json_error("não é um diretório")
+
+            items = [
+                {
+                    "name": item.name,
+                    "type": "dir" if item.is_dir() else "file",
+                }
+                for item in target_dir.iterdir()
+            ]
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "projectId": project_id,
+                    "path": rel_path,
+                    "items": items,
+                }
+            )
+    except PermissionError:
+        return _json_error("não autorizado", 401)
+    except ValueError as exc:
+        return _json_error(str(exc) or "path inválido", 400)
+    except Exception:
+        logger.exception("list_project_fs failed")
+        return _safe_internal_error("erro ao listar diretório")
 
 
 @csrf_exempt
@@ -287,80 +489,92 @@ def read_project_file(request):
         return _json_error("arquivo inválido")
 
     try:
-        rel_path = _sanitize_relative_path(body.get("path", []))
-        workdir = _ensure_project_prepared(project_id)
-        target_dir = _resolve_inside_workdir(workdir, rel_path)
-        target_file = _resolve_inside_workdir(workdir, [*rel_path, file_name])
+        with _protected_request(request, body) as rejection:
+            if rejection is not None:
+                return rejection
 
-        if not target_dir.exists() or not target_dir.is_dir():
-            return _json_error("diretório inválido")
-        if not target_file.exists() or not target_file.is_file():
-            return _json_error("não é um arquivo")
-        if target_file.stat().st_size > MAX_FILE_SIZE_BYTES:
-            return _json_error("arquivo muito grande para visualização")
+            rel_path = _sanitize_relative_path(body.get("path", []))
+            workdir = _ensure_project_prepared(project_id)
+            target_dir = _resolve_inside_workdir(workdir, rel_path)
+            target_file = _resolve_inside_workdir(
+                workdir,
+                [*rel_path, file_name],
+            )
 
-        suffix = target_file.suffix.lower()
-        if suffix == ".pdf":
-            raw_bytes = target_file.read_bytes()
-            encoded = base64.b64encode(raw_bytes).decode("ascii")
+            if not target_dir.exists() or not target_dir.is_dir():
+                return _json_error("diretório inválido")
+            if not target_file.exists() or not target_file.is_file():
+                return _json_error("não é um arquivo")
+            if target_file.stat().st_size > MAX_FILE_SIZE_BYTES:
+                return _json_error("arquivo muito grande para visualização")
+
+            suffix = target_file.suffix.lower()
+            if suffix == ".pdf":
+                raw_bytes = target_file.read_bytes()
+                encoded = base64.b64encode(raw_bytes).decode("ascii")
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "projectId": project_id,
+                        "path": rel_path,
+                        "file": file_name,
+                        "kind": "pdf",
+                        "mimeType": "application/pdf",
+                        "encoding": "base64",
+                        "content": encoded,
+                        "message": None,
+                    }
+                )
+
+            try:
+                content = target_file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "projectId": project_id,
+                        "path": rel_path,
+                        "file": file_name,
+                        "kind": "unsupported",
+                        "mimeType": None,
+                        "encoding": None,
+                        "content": None,
+                        "message": (
+                            "tipo de arquivo não suportado para visualização"
+                        ),
+                    }
+                )
+
+            if suffix == ".md":
+                kind = "markdown"
+                mime_type = "text/markdown"
+            elif suffix in CODE_EXTENSIONS:
+                kind = "code"
+                mime_type = "text/plain"
+            else:
+                kind = "text"
+                mime_type = "text/plain"
+
             return JsonResponse(
                 {
                     "ok": True,
                     "projectId": project_id,
                     "path": rel_path,
                     "file": file_name,
-                    "kind": "pdf",
-                    "mimeType": "application/pdf",
-                    "encoding": "base64",
-                    "content": encoded,
+                    "kind": kind,
+                    "mimeType": mime_type,
+                    "encoding": "utf-8",
+                    "content": content,
                     "message": None,
                 }
             )
-
-        try:
-            content = target_file.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return JsonResponse(
-                {
-                    "ok": True,
-                    "projectId": project_id,
-                    "path": rel_path,
-                    "file": file_name,
-                    "kind": "unsupported",
-                    "mimeType": None,
-                    "encoding": None,
-                    "content": None,
-                    "message": (
-                        "tipo de arquivo não suportado para visualização"
-                    ),
-                }
-            )
-
-        if suffix == ".md":
-            kind = "markdown"
-            mime_type = "text/markdown"
-        elif suffix in CODE_EXTENSIONS:
-            kind = "code"
-            mime_type = "text/plain"
-        else:
-            kind = "text"
-            mime_type = "text/plain"
-
-        return JsonResponse(
-            {
-                "ok": True,
-                "projectId": project_id,
-                "path": rel_path,
-                "file": file_name,
-                "kind": kind,
-                "mimeType": mime_type,
-                "encoding": "utf-8",
-                "content": content,
-                "message": None,
-            }
-        )
-    except Exception as exc:
-        return _json_error(str(exc) or "erro ao ler arquivo", 500)
+    except PermissionError:
+        return _json_error("não autorizado", 401)
+    except ValueError as exc:
+        return _json_error(str(exc) or "path inválido", 400)
+    except Exception:
+        logger.exception("read_project_file failed")
+        return _safe_internal_error("erro ao ler arquivo")
 
 
 @csrf_exempt
@@ -385,33 +599,47 @@ def build_project(request):
     )
     if invalid_arg:
         return _json_error("args inválidos")
-    if len(args) > 8:
+    if len(args) > MAX_BUILD_ARGS:
         return _json_error("muitos argumentos para build")
 
     try:
-        rel_path = _sanitize_relative_path(body.get("path", []))
-        workdir = _ensure_project_prepared(project_id)
-        target_dir = _resolve_inside_workdir(workdir, rel_path)
-        if not target_dir.exists() or not target_dir.is_dir():
-            return _json_error("não é um diretório")
+        with _protected_request(request, body) as rejection:
+            if rejection is not None:
+                return rejection
 
-        safe_args = [arg.strip() for arg in args if arg.strip()]
-        result = _run_command(["make", *safe_args], cwd=target_dir)
-        output = (result["stdout"] or "") + (result["stderr"] or "")
+            rel_path = _sanitize_relative_path(body.get("path", []))
+            workdir = _ensure_project_prepared(project_id)
+            target_dir = _resolve_inside_workdir(workdir, rel_path)
+            if not target_dir.exists() or not target_dir.is_dir():
+                return _json_error("não é um diretório")
 
-        return JsonResponse(
-            {
-                "ok": True,
-                "projectId": project_id,
-                "path": rel_path,
-                "command": " ".join(["make", *safe_args]),
-                "exitCode": int(result["code"]),
-                "success": result["code"] == 0,
-                "output": output,
-            }
-        )
-    except Exception as exc:
-        return _json_error(str(exc) or "erro ao executar build", 500)
+            safe_args = [arg.strip() for arg in args if arg.strip()]
+            result = _run_command(
+                ["make", *safe_args],
+                cwd=target_dir,
+                timeout_ms=BUILD_TIMEOUT_MS,
+            )
+            output = (result["stdout"] or "") + (result["stderr"] or "")
+
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "projectId": project_id,
+                    "path": rel_path,
+                    "command": " ".join(["make", *safe_args]),
+                    "exitCode": int(result["code"]),
+                    "success": result["code"] == 0 and not result["timedOut"],
+                    "timedOut": bool(result["timedOut"]),
+                    "output": _truncate_output(output),
+                }
+            )
+    except PermissionError:
+        return _json_error("não autorizado", 401)
+    except ValueError as exc:
+        return _json_error(str(exc) or "path inválido", 400)
+    except Exception:
+        logger.exception("build_project failed")
+        return _safe_internal_error("erro ao executar build")
 
 
 @csrf_exempt
@@ -439,49 +667,60 @@ def run_project(request):
         return _json_error("args inválidos")
 
     try:
-        rel_path = _sanitize_relative_path(body.get("path", []))
-        workdir = _ensure_project_prepared(project_id)
-        target_dir = _resolve_inside_workdir(workdir, rel_path)
-        if not target_dir.exists() or not target_dir.is_dir():
-            return _json_error("não é um diretório")
+        with _protected_request(request, body) as rejection:
+            if rejection is not None:
+                return rejection
 
-        if executable.startswith("./"):
-            normalized = executable[2:]
-        else:
-            normalized = executable
-        if "/" in normalized or normalized in {".", ".."}:
-            return _json_error("executável inválido")
+            rel_path = _sanitize_relative_path(body.get("path", []))
+            workdir = _ensure_project_prepared(project_id)
+            target_dir = _resolve_inside_workdir(workdir, rel_path)
+            if not target_dir.exists() or not target_dir.is_dir():
+                return _json_error("não é um diretório")
 
-        target_binary = _resolve_inside_workdir(
-            workdir,
-            [*rel_path, normalized],
-        )
-        if not target_binary.exists() or not target_binary.is_file():
-            return _json_error("executável não encontrado")
+            if executable.startswith("./"):
+                normalized = executable[2:]
+            else:
+                normalized = executable
+            if "/" in normalized or normalized in {".", ".."}:
+                return _json_error("executável inválido")
 
-        safe_args = [str(arg) for arg in args[:32]]
-        result = _run_command(
-            [str(target_binary), *safe_args],
-            cwd=target_dir,
-            timeout_ms=10000,
-        )
-        output = (result["stdout"] or "") + (result["stderr"] or "")
-        command_suffix = f" {' '.join(safe_args)}" if safe_args else ""
+            target_binary = _resolve_inside_workdir(
+                workdir,
+                [*rel_path, normalized],
+            )
+            if not target_binary.exists() or not target_binary.is_file():
+                return _json_error("executável não encontrado")
+            if not os.access(target_binary, os.X_OK):
+                return _json_error("arquivo não tem permissão de execução")
 
-        return JsonResponse(
-            {
-                "ok": True,
-                "projectId": project_id,
-                "path": rel_path,
-                "command": f"./{normalized}{command_suffix}",
-                "exitCode": int(result["code"]),
-                "success": result["code"] == 0 and not result["timedOut"],
-                "timedOut": bool(result["timedOut"]),
-                "output": output,
-            }
-        )
-    except Exception as exc:
-        return _json_error(str(exc) or "erro ao executar binário", 500)
+            safe_args = [str(arg) for arg in args[:MAX_RUN_ARGS]]
+            result = _run_command(
+                [str(target_binary), *safe_args],
+                cwd=target_dir,
+                timeout_ms=RUN_TIMEOUT_MS,
+            )
+            output = (result["stdout"] or "") + (result["stderr"] or "")
+            command_suffix = f" {' '.join(safe_args)}" if safe_args else ""
+
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "projectId": project_id,
+                    "path": rel_path,
+                    "command": f"./{normalized}{command_suffix}",
+                    "exitCode": int(result["code"]),
+                    "success": result["code"] == 0 and not result["timedOut"],
+                    "timedOut": bool(result["timedOut"]),
+                    "output": _truncate_output(output),
+                }
+            )
+    except PermissionError:
+        return _json_error("não autorizado", 401)
+    except ValueError as exc:
+        return _json_error(str(exc) or "path inválido", 400)
+    except Exception:
+        logger.exception("run_project failed")
+        return _safe_internal_error("erro ao executar binário")
 
 
 @csrf_exempt
@@ -497,24 +736,34 @@ def cleanup_project(request):
     workdir = body.get("workdir")
 
     try:
-        if isinstance(project_id, str) and project_id:
-            existing = PROJECT_SESSIONS.get(project_id)
-            if not existing:
-                return JsonResponse({"ok": True, "deleted": None})
+        with _protected_request(request, body) as rejection:
+            if rejection is not None:
+                return rejection
 
-            shutil.rmtree(existing, ignore_errors=True)
-            PROJECT_SESSIONS.pop(project_id, None)
-            return JsonResponse({"ok": True, "deleted": existing})
+            if isinstance(project_id, str) and project_id:
+                existing = PROJECT_SESSIONS.get(project_id)
+                if not existing:
+                    return JsonResponse({"ok": True, "deleted": None})
 
-        if not isinstance(workdir, str) or not workdir:
-            return _json_error("projectId ou workdir é obrigatório")
+                shutil.rmtree(existing, ignore_errors=True)
+                PROJECT_SESSIONS.pop(project_id, None)
+                return JsonResponse({"ok": True, "deleted": existing})
 
-        workdir_path = Path(workdir).resolve()
-        base_path = WORKDIR_BASE.resolve()
-        if workdir_path != base_path and base_path not in workdir_path.parents:
-            return _json_error("workdir inválido")
+            if not isinstance(workdir, str) or not workdir:
+                return _json_error("projectId ou workdir é obrigatório")
 
-        shutil.rmtree(workdir_path, ignore_errors=True)
-        return JsonResponse({"ok": True, "deleted": str(workdir_path)})
-    except Exception as exc:
-        return _json_error(str(exc) or "erro ao limpar workdir", 500)
+            workdir_path = Path(workdir).resolve()
+            base_path = WORKDIR_BASE.resolve()
+            if (
+                workdir_path != base_path
+                and base_path not in workdir_path.parents
+            ):
+                return _json_error("workdir inválido")
+
+            shutil.rmtree(workdir_path, ignore_errors=True)
+            return JsonResponse({"ok": True, "deleted": str(workdir_path)})
+    except PermissionError:
+        return _json_error("não autorizado", 401)
+    except Exception:
+        logger.exception("cleanup_project failed")
+        return _safe_internal_error("erro ao limpar workdir")

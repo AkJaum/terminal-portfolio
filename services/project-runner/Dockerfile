@@ -17,9 +17,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY manage.py ./
 COPY runner_service ./runner_service
 
+RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
+
 ENV PORT=8080
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+USER app
 EXPOSE 8080
 
 CMD ["sh", "-c", "gunicorn runner_service.wsgi:application --bind 0.0.0.0:${PORT}"]

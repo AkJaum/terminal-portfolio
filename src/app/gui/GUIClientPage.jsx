@@ -353,6 +353,19 @@ export default function GUIClientPage() {
   }
 
   function openProgramFromExplorer({ payload, fileName, currentPath }) {
+    if (payload.kind === "launcher") {
+      const target = String(payload.target || "").toLowerCase();
+      if (target === "terminal") {
+        openTerminalWindow(currentPath);
+        return;
+      }
+
+      if (target === "dungeon4fun") {
+        openGameWindow();
+        return;
+      }
+    }
+
     if (fileName === "dungeon4fun") {
       openGameWindow();
       return;
@@ -425,12 +438,14 @@ export default function GUIClientPage() {
   }
 
   function openDesktopEntry(entry) {
-    if (entry.name === "terminal") {
+    const entryNameLower = String(entry.name || "").toLowerCase();
+
+    if (entryNameLower === "terminal") {
       openTerminalWindow(["home"]);
       return;
     }
 
-    if (entry.name === "dungeon4fun") {
+    if (entryNameLower === "dungeon4fun") {
       openGameWindow();
       return;
     }

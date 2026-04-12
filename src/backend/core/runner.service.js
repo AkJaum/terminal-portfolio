@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import path from "path";
 
 const RUNNER_BASE_URL = process.env.PROJECT_RUNNER_URL || "http://localhost:8080";
+const RUNNER_SHARED_TOKEN = process.env.RUNNER_SHARED_TOKEN || "";
 const PROJECT_IDLE_CLEANUP_MS = Number(process.env.PROJECT_IDLE_CLEANUP_MS || 60_000);
 const cleanupTimers = new Map();
 const CODE_EXTENSIONS = new Set([
@@ -32,11 +33,23 @@ function resolveStaticFileReference(value) {
 }
 
 async function runnerRequest(endpoint, body, method = "POST") {
+  const clientId =
+    (body && typeof body.clientId === "string" && body.clientId.trim())
+      || (body && typeof body.projectId === "string" && body.projectId.trim())
+      || "runner-client";
+
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Client-Id": String(clientId),
+  };
+
+  if (RUNNER_SHARED_TOKEN) {
+    headers["X-Runner-Token"] = RUNNER_SHARED_TOKEN;
+  }
+
   const response = await fetch(`${RUNNER_BASE_URL}${endpoint}`, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
@@ -140,6 +153,21 @@ export async function readFilePayloadAtPath(path, file) {
 
   const ext = String(file).split(".").pop()?.toLowerCase() || "";
   const content = String(resolveStaticFileReference(dir[file]) ?? "");
+  const launcherMatch = content.trim().match(/^launcher:\/\/([a-z0-9_-]+)$/i);
+
+  if (launcherMatch) {
+    const target = launcherMatch[1].toLowerCase();
+    return {
+      ok: true,
+      file,
+      kind: "launcher",
+      mimeType: "text/x-launcher",
+      encoding: "utf-8",
+      target,
+      content: content.trim(),
+      message: null,
+    };
+  }
 
   if (ext === "web") {
     const rawUrl = content.trim();

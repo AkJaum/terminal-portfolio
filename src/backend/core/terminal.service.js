@@ -4,7 +4,83 @@ import { resolveProjectFromPath } from "./project.catalog";
 import { readFileSync } from "fs";
 import path from "path";
 
-const COMMANDS = ["ls", "cd", "cat", "view", "vim", "make", "run", "pwd", "help", "clear", "gui", "aboutme"];
+const HELP_ENTRIES = [
+	{
+		command: "ls",
+		usage: "ls [caminho]",
+		description: "Lista arquivos e pastas do diretório atual ou de um caminho informado.",
+		example: "ls src/app",
+	},
+	{
+		command: "cd",
+		usage: "cd <dir> | cd .. | cd / | cd ~",
+		description: "Navega entre diretórios e volta para a pasta anterior ou para a home.",
+		example: "cd ../backend",
+	},
+	{
+		command: "cat",
+		usage: "cat <arquivo>",
+		description: "Mostra o conteúdo bruto de um arquivo de texto.",
+		example: "cat README.md",
+	},
+	{
+		command: "view",
+		usage: "view <arquivo>",
+		description: "Abre o arquivo no visualizador do terminal, com suporte a markdown.",
+		example: "view README.md",
+	},
+	{
+		command: "vim",
+		usage: "vim <arquivo>",
+		description: "Abre o arquivo em modo editor/visualização rápida dentro do terminal.",
+		example: "vim src/app/page.js",
+	},
+	{
+		command: "make",
+		usage: "make [args...]",
+		description: "Dispara os fluxos de build do projeto pela runtime conectada ao runner.",
+		example: "make dev",
+	},
+	{
+		command: "run",
+		usage: "run <executavel> [args...]",
+		description: "Executa um binario do projeto no runner e exibe a saida na tela.",
+		example: "run ./dist/app",
+	},
+	{
+		command: "pwd",
+		usage: "pwd",
+		description: "Mostra o caminho atual dentro do terminal.",
+		example: "pwd",
+	},
+	{
+		command: "help",
+		usage: "help [comando]",
+		description: "Exibe a ajuda completa ou detalhes de um comando especifico.",
+		example: "help cd",
+	},
+	{
+		command: "clear",
+		usage: "clear",
+		description: "Limpa a tela do terminal e remove a saida anterior.",
+		example: "clear",
+	},
+	{
+		command: "gui",
+		usage: "gui",
+		description: "Abre a interface grafica alternativa do portfolio.",
+		example: "gui",
+	},
+	{
+		command: "aboutme",
+		usage: "aboutme",
+		description: "Mostra uma apresentacao curta sobre mim e o portfolio.",
+		example: "aboutme",
+	},
+];
+
+const COMMANDS = HELP_ENTRIES.map(({ command }) => command);
+const HELP_ENTRY_BY_COMMAND = new Map(HELP_ENTRIES.map((entry) => [entry.command, entry]));
 
 function extractFileExtension(name, isDir) {
 	if (isDir) return "";
@@ -111,12 +187,61 @@ function pwd(_fs, path) {
 	return { output: "/" + path.slice(1).join("/") };
 }
 
-function help() {
+function padRight(value, size) {
+	return String(value).padEnd(size, " ");
+}
+
+function formatHelpTable(entries) {
+	const rows = [
+		{ command: "COMANDO", usage: "USO", description: "PARA QUE SERVE" },
+		...entries,
+	];
+
+	const widths = rows.reduce(
+		(acc, row) => ({
+			command: Math.max(acc.command, String(row.command).length),
+			usage: Math.max(acc.usage, String(row.usage).length),
+			description: Math.max(acc.description, String(row.description).length),
+		}),
+		{ command: 0, usage: 0, description: 0 }
+	);
+
+	return rows
+		.map(
+			(row) =>
+				`${padRight(row.command, widths.command)}  ${padRight(row.usage, widths.usage)}  ${row.description}`
+		)
+		.join("\n");
+}
+
+function formatHelpDetail(entry) {
+	return [
+		`Comando: ${entry.command}`,
+		`Uso: ${entry.usage}`,
+		`Para que serve: ${entry.description}`,
+		`Exemplo: ${entry.example}`,
+	].join("\n");
+}
+
+function help(commandName) {
+	const requestedCommand = String(commandName || "").trim().toLowerCase();
+
+	if (requestedCommand) {
+		const entry = HELP_ENTRY_BY_COMMAND.get(requestedCommand);
+		if (!entry) {
+			return { error: `Error: comando ${requestedCommand} não encontrado` };
+		}
+
+		return { output: formatHelpDetail(entry) };
+	}
+
 	return {
-		output:
-			"Comandos disponíveis: " +
-			COMMANDS.join(", ") +
-			". Se você não sabe como usar um terminal, use o comando GUI para abrir a interface gráfica.",
+		output: [
+			"Comandos disponiveis:",
+			formatHelpTable(HELP_ENTRIES),
+			"",
+			"Dica: use help <comando> para ver detalhes de uso.",
+		].join("\n"),
 	};
 }
 
