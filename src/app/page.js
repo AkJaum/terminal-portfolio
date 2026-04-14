@@ -4,6 +4,14 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 
+const GUI_AVATARS = [
+  { id: "astronaut", icon: "🧑‍🚀", label: "Astronaut" },
+  { id: "developer", icon: "🧑‍💻", label: "Developer" },
+  { id: "scientist", icon: "🧑‍🔬", label: "Scientist" },
+  { id: "artist", icon: "🧑‍🎨", label: "Artist" },
+  { id: "pilot", icon: "🧑‍✈️", label: "Pilot" },
+];
+
 const COPY = {
   "pt-BR": {
     welcome: "Seja bem-vindo! Esse e o meu portfolio, selecione uma das opcoes abaixo para visualizar meus projetos",
@@ -15,6 +23,7 @@ const COPY = {
     terminalDescription: "Se voce e um entusiasta de terminais e comandos, essa e a opcao para voce! Explore o portfolio usando uma interface de linha de comando inspirada em sistemas Unix.",
     modalTitle: "Definir usuario da maquina",
     modalDescription: "Escolha o nome do usuario para entrar no ambiente selecionado.",
+    avatarLabel: "Foto de perfil",
     userLabel: "Nome do usuario",
     userPlaceholder: "ex: joao",
     cancel: "Cancelar",
@@ -31,6 +40,7 @@ const COPY = {
     terminalDescription: "If you enjoy terminals and commands, this option is for you! Explore the portfolio through a Unix-inspired command line interface.",
     modalTitle: "Set machine user",
     modalDescription: "Choose the user name to enter the selected environment.",
+    avatarLabel: "Profile picture",
     userLabel: "User name",
     userPlaceholder: "e.g. joao",
     cancel: "Cancel",
@@ -51,6 +61,7 @@ export default function Page() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState("terminal");
   const [userName, setUserName] = useState("");
+  const [avatarIndex, setAvatarIndex] = useState(0);
 
   const languages = useMemo(() => ["pt-BR", "en-US"], []);
   const activeLanguage = languages[languageIndex];
@@ -75,7 +86,21 @@ export default function Page() {
   function handleConfirm(event) {
     event.preventDefault();
     const finalUser = sanitizeUserName(userName) || "guest";
-    router.push(`/${selectedMode}?user=${encodeURIComponent(finalUser)}`);
+    const params = new URLSearchParams({
+      user: finalUser,
+    });
+
+    if (selectedMode === "gui") {
+      params.set("avatar", GUI_AVATARS[avatarIndex].icon);
+      params.set("theme", "dark");
+    }
+
+    router.push(`/${selectedMode}?${params.toString()}`);
+  }
+
+  function rotateAvatar(direction) {
+    const total = GUI_AVATARS.length;
+    setAvatarIndex((prev) => (prev + direction + total) % total);
   }
 
   return (
@@ -119,6 +144,33 @@ export default function Page() {
             <h3 className={styles.modalTitle}>{copy.modalTitle}</h3>
             <p className={styles.modalDescription}>{copy.modalDescription}</p>
             <form onSubmit={handleConfirm}>
+              {selectedMode === "gui" && (
+                <div className={styles.avatarBlock}>
+                  <p className={styles.modalLabel}>{copy.avatarLabel}</p>
+                  <div className={styles.avatarCarousel}>
+                    <button
+                      type="button"
+                      className={styles.avatarArrow}
+                      onClick={() => rotateAvatar(-1)}
+                      aria-label="Avatar anterior"
+                    >
+                      &#x2039;
+                    </button>
+                    <div className={styles.avatarPreview} aria-live="polite">
+                      <span className={styles.avatarIcon}>{GUI_AVATARS[avatarIndex].icon}</span>
+                      <span className={styles.avatarName}>{GUI_AVATARS[avatarIndex].label}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.avatarArrow}
+                      onClick={() => rotateAvatar(1)}
+                      aria-label="Proximo avatar"
+                    >
+                      &#x203A;
+                    </button>
+                  </div>
+                </div>
+              )}
               <label htmlFor="username" className={styles.modalLabel}>{copy.userLabel}</label>
               <input
                 id="username"

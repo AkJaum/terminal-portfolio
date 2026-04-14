@@ -12,20 +12,49 @@ import GameWindow from "../components/gui/GameWindow";
 import FileContentViewer from "../components/FileContentViewer";
 import style from "./guipage.module.css";
 
+const SOCIAL_LINKS = {
+  github: "https://github.com/akjaum",
+  linkedin: "https://www.linkedin.com",
+};
+
 export default function GUIClientPage() {
   const searchParams = useSearchParams();
   const contentRef = useRef(null);
-  const [time, setTime] = useState("");
+  const [clock, setClock] = useState({ time: "--:--", date: "" });
   const [windows, setWindows] = useState([]);
   const [nextWindowId, setNextWindowId] = useState(1);
   const [hoveredGroup, setHoveredGroup] = useState(null);
+  const [startMenuOpen, setStartMenuOpen] = useState(false);
   const [desktopBounds, setDesktopBounds] = useState({ width: 0, height: 0 });
+  const [theme, setTheme] = useState(searchParams.get("theme") === "light" ? "light" : "dark");
   const zCounterRef = useRef(5);
+  const startMenuRef = useRef(null);
   const userName = useMemo(() => {
     const rawUser = searchParams.get("user") || "guest";
     const cleanUser = rawUser.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
     return cleanUser || "guest";
   }, [searchParams]);
+  const avatarIcon = useMemo(() => {
+    const avatar = searchParams.get("avatar");
+    return avatar ? avatar.trim() : "🙂";
+  }, [searchParams]);
+  const clockLocale = useMemo(() => {
+    const language = searchParams.get("lang");
+    return language === "en-US" ? "en-US" : "pt-BR";
+  }, [searchParams]);
+  const clockTimeFormatter = useMemo(() => {
+    return new Intl.DateTimeFormat(clockLocale, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [clockLocale]);
+  const clockDateFormatter = useMemo(() => {
+    return new Intl.DateTimeFormat(clockLocale, {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    });
+  }, [clockLocale]);
 
   const desktopEntries = Object.entries(filesystem?.home || {}).map(([name, value]) => ({
     name,
@@ -33,13 +62,21 @@ export default function GUIClientPage() {
   }));
 
   useEffect(() => {
-    setTime(new Date().toLocaleTimeString());
+    function updateClock() {
+      const now = new Date();
+      setClock({
+        time: clockTimeFormatter.format(now),
+        date: clockDateFormatter.format(now),
+      });
+    }
+
+    updateClock();
     const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString());
-    }, 1000);
+      updateClock();
+    }, 1000 * 15);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [clockDateFormatter, clockTimeFormatter]);
 
   useEffect(() => {
     function measureDesktop() {
@@ -86,6 +123,20 @@ export default function GUIClientPage() {
       };
     }));
   }, [desktopBounds.height, desktopBounds.width]);
+
+  useEffect(() => {
+    if (!startMenuOpen) return undefined;
+
+    function handleClickOutside(event) {
+      if (!startMenuRef.current) return;
+      if (!startMenuRef.current.contains(event.target)) {
+        setStartMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handleClickOutside);
+    return () => window.removeEventListener("pointerdown", handleClickOutside);
+  }, [startMenuOpen]);
 
   function nextZIndex() {
     zCounterRef.current += 1;
@@ -516,8 +567,21 @@ export default function GUIClientPage() {
   const taskbarFilesGroup = taskbarGroups.find((group) => group.groupKey === "files");
   const taskbarOtherGroups = taskbarGroups.filter((group) => group.groupKey !== "files");
 
+  function toggleStartMenu() {
+    setStartMenuOpen((prev) => !prev);
+  }
+
+  function handleThemeChange(nextTheme) {
+    setTheme(nextTheme === "light" ? "light" : "dark");
+  }
+
+  function openExternal(url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    setStartMenuOpen(false);
+  }
+
   return (
-    <div className={style.container}>
+    <div className={style.container} data-theme={theme}>
         <div className={style.content} ref={contentRef}>
           <div className={style.desktopGrid}>
             {desktopEntries.map((entry) => (
@@ -581,7 +645,64 @@ export default function GUIClientPage() {
           ))}
         </div>
         <div className={style.taskbar}>
-          <button onClick={() => openTerminalWindow(["home"])} className={style.button}>🖥️</button>
+          <div className={style.startArea} ref={startMenuRef}>
+            <button type="button" onClick={toggleStartMenu} className={style.startButton}>⊞</button>
+            {startMenuOpen && (
+              <div className={style.startMenu}>
+                <div className={style.startProfile}>
+                  <div className={style.startAvatar}>{avatarIcon}</div>
+                  <div className={style.startUser}>{userName}</div>
+                </div>
+
+                <div className={style.startSection}>
+                  <div className={style.startSectionTitle}>Tema</div>
+                  <div className={style.themeActions}>
+                    <button
+                      type="button"
+                      className={`${style.themeButton} ${theme === "light" ? style.themeButtonActive : ""}`}
+                      onClick={() => handleThemeChange("light")}
+                    >
+                      Light
+                    </button>
+                    <button
+                      type="button"
+                      className={`${style.themeButton} ${theme === "dark" ? style.themeButtonActive : ""}`}
+                      onClick={() => handleThemeChange("dark")}
+                    >
+                      Dark
+                    </button>
+                  </div>
+                </div>
+
+                <div className={style.startSection}>
+                  <button
+                    type="button"
+                    className={style.startMenuItem}
+                    onClick={() => {
+                      openTerminalWindow(["home"]);
+                      setStartMenuOpen(false);
+                    }}
+                  >
+                    Abrir terminal
+                  </button>
+                  <button
+                    type="button"
+                    className={style.startMenuItem}
+                    onClick={() => openExternal(SOCIAL_LINKS.linkedin)}
+                  >
+                    LinkedIn
+                  </button>
+                  <button
+                    type="button"
+                    className={style.startMenuItem}
+                    onClick={() => openExternal(SOCIAL_LINKS.github)}
+                  >
+                    GitHub
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
             <div className={style.applications}>
               <div
                 className={style.taskGroup}
@@ -657,7 +778,16 @@ export default function GUIClientPage() {
                 </div>
               ))}
             </div>
-            <div className={style.clock}>{time || "--:--:--"}</div>
+            <div className={style.statusArea}>
+              <div className={style.statusIcons}>
+                <span className={style.statusIcon} title="Wi-Fi conectado">📶</span>
+                <span className={style.statusIcon} title="Bateria">🔋</span>
+              </div>
+              <div className={style.clock}>
+                <span className={style.clockTime}>{clock.time}</span>
+                <span className={style.clockDate}>{clock.date}</span>
+              </div>
+            </div>
         </div>
     </div>
   );

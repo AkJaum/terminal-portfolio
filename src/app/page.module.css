@@ -189,6 +189,57 @@ html, body {
   line-height: 1.5;
 }
 
+.avatarBlock {
+  margin-bottom: 0.9rem;
+}
+
+.avatarCarousel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.avatarArrow {
+  height: 36px;
+  width: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 222, 128, 0.48);
+  background: #151e18;
+  color: #bbf7d0;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.avatarArrow:hover {
+  border-color: #86efac;
+  background: #1d2b23;
+}
+
+.avatarPreview {
+  width: 180px;
+  min-height: 98px;
+  border-radius: 0.62rem;
+  border: 1px solid rgba(74, 222, 128, 0.42);
+  background: #111913;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.avatarIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.avatarName {
+  color: #bbf7d0;
+  font-size: 0.85rem;
+}
+
 .modalLabel {
   display: block;
   margin-bottom: 0.45rem;
