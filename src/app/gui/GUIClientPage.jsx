@@ -888,7 +888,7 @@ export default function GUIClientPage() {
             <div className={style.fullscreenPromptCard}>
               <h2 id="fullscreenPromptTitle" className={style.fullscreenPromptTitle}>Ativar tela cheia?</h2>
               <p className={style.fullscreenPromptText}>
-                Para uma experiência melhor na GUI, deseja abrir em modo tela cheia?
+                Para uma experiência melhor na GUI, deseja abrir em modo tela cheia? Pode ser ativado ou desativado nas configurações.
               </p>
               <div className={style.fullscreenPromptActions}>
                 <button type="button" className={`${style.promptButton} ${style.promptButtonPrimary}`} onClick={acceptFullscreenPrompt}>
