@@ -27,7 +27,6 @@ const filesystem = {
         },
       },
     },
-    "about.txt": "João Gabriel - Desenvolvedor FullStack\nGitHub: https://github.com/akjaum\n",
   },
 };
 

@@ -1,21 +1,1805 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dungeon 4 Fun</title>
+    <title>Dungeon4Fun</title>
     <style>
-      html, body, #app {
+      :root {
+        color-scheme: dark;
+        --bg-1: #071018;
+        --bg-2: #0d1622;
+        --panel: rgba(12, 19, 31, 0.84);
+        --panel-strong: rgba(14, 24, 40, 0.96);
+        --line: rgba(135, 187, 231, 0.22);
+        --line-strong: rgba(133, 196, 255, 0.5);
+        --text: #ecf5ff;
+        --muted: #9bb7d2;
+        --accent: #7ed0ff;
+        --accent-2: #ffe08a;
+        --danger: #ff7a7a;
+        --success: #a9ffb8;
+        --shadow: 0 24px 72px rgba(0, 0, 0, 0.45);
+      }
+
+      html,
+      body {
         margin: 0;
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: #0b0f14;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(75, 127, 198, 0.18), transparent 34%),
+          radial-gradient(circle at 80% 10%, rgba(112, 193, 255, 0.11), transparent 30%),
+          radial-gradient(circle at 50% 90%, rgba(17, 96, 164, 0.12), transparent 38%),
+          linear-gradient(180deg, #050b11 0%, #07131d 42%, #050b11 100%);
+        color: var(--text);
+        font-family: "Trebuchet MS", "Segoe UI", "Helvetica Neue", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      #shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        isolation: isolate;
+      }
+
+      #shell::before,
+      #shell::after {
+        content: "";
+        position: absolute;
+        inset: -10%;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      #shell::before {
+        background:
+          linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%),
+          linear-gradient(0deg, rgba(255,255,255,0.018) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+        background-size: 100% 100%, 100% 48px, 48px 100%;
+        mix-blend-mode: screen;
+        opacity: 0.28;
+      }
+
+      #shell::after {
+        background: radial-gradient(circle at 50% 50%, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
+        opacity: 0.9;
+      }
+
+      #gameCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        display: block;
+        image-rendering: pixelated;
+      }
+
+      #hud {
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        z-index: 6;
+        min-width: 240px;
+        max-width: min(46vw, 740px);
+        padding: 14px 16px 12px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(16, 24, 38, 0.82), rgba(10, 16, 26, 0.68));
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      #hud strong {
+        color: var(--accent);
+      }
+
+      #hudLine {
+        font-size: 16px;
+        line-height: 1.5;
+        letter-spacing: 0.02em;
+      }
+
+      #hudHint {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      #toast {
+        position: absolute;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%) translateY(20px);
+        z-index: 8;
+        opacity: 0;
+        pointer-events: none;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(6, 10, 16, 0.8);
+        border: 1px solid rgba(150, 200, 255, 0.22);
+        color: var(--text);
+        box-shadow: var(--shadow);
+        transition: opacity 180ms ease, transform 180ms ease;
+      }
+
+      #toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      #overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: radial-gradient(circle at top, rgba(6, 12, 20, 0.4), rgba(0, 0, 0, 0.66));
+        backdrop-filter: blur(5px);
+      }
+
+      .panel {
+        width: min(860px, 100%);
+        border-radius: 30px;
+        border: 1px solid rgba(141, 194, 255, 0.18);
+        background: linear-gradient(180deg, rgba(10, 18, 29, 0.94), rgba(10, 14, 22, 0.98));
+        box-shadow: var(--shadow);
+        padding: 28px;
+        position: relative;
+        overflow: hidden;
+        animation: panelIn 220ms ease-out;
+      }
+
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+        opacity: 0.25;
+        pointer-events: none;
+      }
+
+      @keyframes panelIn {
+        from {
+          transform: translateY(14px) scale(0.99);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
+      }
+
+      .panelHeader {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .panelHeader h1,
+      .panelHeader h2 {
+        margin: 0;
+        line-height: 1;
+      }
+
+      .title {
+        font-size: clamp(40px, 6vw, 64px);
+        letter-spacing: 0.03em;
+        text-shadow: 0 0 18px rgba(126, 208, 255, 0.26);
+        animation: glow 2.8s ease-in-out infinite alternate;
+      }
+
+      @keyframes glow {
+        from {
+          text-shadow: 0 0 12px rgba(126, 208, 255, 0.16);
+        }
+        to {
+          text-shadow: 0 0 26px rgba(126, 208, 255, 0.38);
+        }
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 14px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .panelGrid {
+        display: grid;
+        gap: 14px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .menuGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .menuCard,
+      .optionCard,
+      .slotCard,
+      .bookCard,
+      .configCard {
+        border-radius: 20px;
+        border: 1px solid rgba(142, 196, 255, 0.16);
+        background: linear-gradient(180deg, rgba(18, 29, 45, 0.82), rgba(11, 17, 26, 0.86));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+      }
+
+      .menuCard {
+        padding: 20px;
+      }
+
+      .menuCard p,
+      .optionCard p,
+      .bookCard p,
+      .configCard p,
+      .slotCard p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid rgba(141, 194, 255, 0.22);
+        color: var(--text);
+        background: linear-gradient(180deg, rgba(42, 66, 96, 0.96), rgba(22, 35, 52, 0.96));
+        border-radius: 14px;
+        padding: 12px 16px;
+        min-height: 46px;
+        cursor: pointer;
+        letter-spacing: 0.02em;
+        transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(126, 208, 255, 0.52);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.26);
+      }
+
+      .btn.primary {
+        background: linear-gradient(180deg, rgba(82, 154, 219, 0.98), rgba(35, 82, 123, 0.98));
+        border-color: rgba(171, 227, 255, 0.44);
+        color: #effaff;
+      }
+
+      .btn.accent {
+        background: linear-gradient(180deg, rgba(148, 115, 45, 0.98), rgba(97, 69, 19, 0.98));
+        border-color: rgba(255, 225, 149, 0.34);
+        color: #fff4d0;
+      }
+
+      .btn.ghost {
+        background: rgba(12, 18, 28, 0.58);
+      }
+
+      .btn.danger {
+        background: linear-gradient(180deg, rgba(180, 58, 58, 0.98), rgba(109, 25, 25, 0.98));
+        border-color: rgba(255, 154, 154, 0.36);
+      }
+
+      .btn.small {
+        min-height: 36px;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 10px;
+      }
+
+      .sectionTitle {
+        font-size: 18px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--accent);
+        margin: 0 0 12px;
+      }
+
+      .screenBody {
+        display: grid;
+        gap: 18px;
+      }
+
+      .screenBody.twoCols {
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+
+      .slotList,
+      .bookList,
+      .configList {
+        display: grid;
+        gap: 12px;
+      }
+
+      .slotCard,
+      .bookCard,
+      .configCard,
+      .optionCard {
+        padding: 16px;
+      }
+
+      .slotRow,
+      .configRow,
+      .bookRow,
+      .optionRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .slotMeta,
+      .bookMeta,
+      .configMeta,
+      .optionMeta {
+        display: grid;
+        gap: 6px;
+      }
+
+      .slotMeta strong,
+      .bookMeta strong,
+      .configMeta strong,
+      .optionMeta strong {
+        font-size: 18px;
+      }
+
+      .mini {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .separator {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(141, 194, 255, 0.22), transparent);
+        margin: 6px 0;
+      }
+
+      .centered {
+        text-align: center;
+      }
+
+      .bigNote {
+        font-size: 20px;
+        color: #ffd89b;
+        letter-spacing: 0.03em;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .optionCard {
+        cursor: pointer;
+        transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+      }
+
+      .optionCard:hover {
+        transform: translateY(-2px);
+        border-color: rgba(255, 224, 138, 0.56);
+        background: linear-gradient(180deg, rgba(52, 37, 14, 0.98), rgba(27, 19, 8, 0.98));
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 900px) {
+        .menuGrid,
+        .screenBody.twoCols {
+          grid-template-columns: 1fr;
+        }
+
+        #hud {
+          left: 12px;
+          right: 12px;
+          max-width: none;
+        }
+
+        .panel {
+          border-radius: 22px;
+          padding: 20px;
+        }
+
+        .panelHeader {
+          flex-direction: column;
+          align-items: flex-start;
+        }
       }
     </style>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="./index.js"></script>
+    <div id="shell">
+      <canvas id="gameCanvas"></canvas>
+      <div id="hud" class="hidden">
+        <div id="hudLine"></div>
+        <div id="hudHint"></div>
+      </div>
+      <div id="toast"></div>
+      <div id="overlay"></div>
+    </div>
+
+    <script type="module">
+      const STORAGE_SAVE_KEY = "dungeon4fun-web-save-v1";
+      const STORAGE_SETTINGS_KEY = "dungeon4fun-web-settings-v1";
+
+      const WORLD = { width: 2200, height: 1400 };
+      const WAIT_MS = 3000;
+      const dprLimit = 2;
+
+      const BASE_PLAYER = {
+        maxLife: 8,
+        life: 8,
+        level: 1,
+        xp: 0,
+        xpNext: 15,
+        speed: 140,
+        attackDamage: 1.5,
+        attackCooldownMs: 420,
+        armor: 0,
+        regenRate: 0,
+      };
+
+      const ENEMY_DEFS = {
+        rat: { hp: 4, speed: 64, damage: 1, xp: 2, color: "#8b5a2b", size: 14 },
+        bat: { hp: 5, speed: 84, damage: 1, xp: 3, color: "#5d4d8f", size: 14 },
+        slime: { hp: 10, speed: 48, damage: 2, xp: 5, color: "#47b347", size: 18 },
+        skeleton: { hp: 8, speed: 62, damage: 1, xp: 8, color: "#e0d7c0", size: 16 },
+        fish: { hp: 7, speed: 58, damage: 1, xp: 7, color: "#7ba2bf", size: 16 },
+        wraith: { hp: 9, speed: 72, damage: 1, xp: 12, color: "#3f2d5f", size: 17 },
+        golem: { hp: 25, speed: 43, damage: 4, xp: 18, color: "#7e7f8a", size: 22 },
+      };
+
+      const UPGRADES = [
+        {
+          key: "maxLife",
+          title: "+1 Vida Maxima",
+          detail: "Aumenta o teto e cura o heroi ao receber a melhoria.",
+          apply(player) {
+            player.maxLife += 1;
+            player.life = player.maxLife;
+          },
+        },
+        {
+          key: "speed",
+          title: "+12 Velocidade",
+          detail: "Mais mobilidade para escapar e reposicionar.",
+          apply(player) {
+            player.speed += 12;
+          },
+        },
+        {
+          key: "damage",
+          title: "+0.5 Dano",
+          detail: "Cada disparo acerta com mais impacto.",
+          apply(player) {
+            player.attackDamage += 0.5;
+          },
+        },
+        {
+          key: "cooldown",
+          title: "-40ms Cooldown",
+          detail: "Atira com mais frequencia.",
+          apply(player) {
+            player.attackCooldownMs = Math.max(120, player.attackCooldownMs - 40);
+          },
+        },
+        {
+          key: "armor",
+          title: "+1 Armadura",
+          detail: "Reduz o dano recebido de cada contato.",
+          apply(player) {
+            player.armor += 1;
+          },
+        },
+      ];
+
+      const BESTIARY = [
+        ["Rat", "Rapido e fragil"],
+        ["Bat", "Perseguidor veloz"],
+        ["Slime", "Lento e resistente"],
+        ["Skeleton", "Avanca sem parar"],
+        ["Fish", "Pressao constante"],
+        ["Wraith", "Mobilidade alta"],
+        ["Golem", "Tanque de impacto"],
+      ];
+
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const hud = document.getElementById("hud");
+      const hudLine = document.getElementById("hudLine");
+      const hudHint = document.getElementById("hudHint");
+      const overlay = document.getElementById("overlay");
+      const toast = document.getElementById("toast");
+
+      const state = {
+        screen: "menu",
+        slotMode: "load",
+        player: createBasePlayer(),
+        run: createBaseRun(),
+        slots: [null, null, null],
+        settings: {
+          resolutionScale: 1,
+          fullscreen: false,
+          devMode: false,
+        },
+        enemies: [],
+        projectiles: [],
+        floaters: [],
+        pointer: {
+          x: 0,
+          y: 0,
+          down: false,
+          worldX: 0,
+          worldY: 0,
+        },
+        keys: Object.create(null),
+        camera: { x: 0, y: 0 },
+        waveSystem: createWaveSystem(),
+        levelUpOptions: [],
+        screenSize: { width: 960, height: 540 },
+        lastTs: performance.now(),
+        toastTimer: 0,
+        toastText: "",
+        toastLevel: "info",
+        fps: 0,
+        fpsFrames: 0,
+        fpsTimer: 0,
+        dead: false,
+      };
+
+      function createBasePlayer() {
+        return { ...BASE_PLAYER };
+      }
+
+      function createBaseRun() {
+        return { wave: 1, kills: 0, gold: 0 };
+      }
+
+      function createWaveSystem() {
+        return {
+          wave: 1,
+          state: "WAITING",
+          timerMs: 1200,
+          queue: [],
+          spawnTimerMs: 0,
+          reset(startWave = 1) {
+            this.wave = Math.max(1, startWave);
+            this.state = "WAITING";
+            this.timerMs = 1200;
+            this.queue = [];
+            this.spawnTimerMs = 0;
+          },
+          beginWave(wave) {
+            this.wave = wave;
+            this.state = "ACTIVE";
+            this.queue = [];
+            const comp = composition(wave);
+            for (const [type, count] of Object.entries(comp)) {
+              for (let i = 0; i < count; i += 1) this.queue.push(type);
+            }
+            shuffle(this.queue);
+            this.spawnTimerMs = 350;
+          },
+          update(delta, player, spawnEnemy) {
+            if (this.state === "WAITING") {
+              this.timerMs -= delta;
+              if (this.timerMs <= 0) {
+                this.beginWave(this.wave);
+              }
+              return;
+            }
+
+            this.spawnTimerMs -= delta;
+            if (this.spawnTimerMs <= 0 && this.queue.length > 0) {
+              const type = this.queue.shift();
+              spawnEnemy(type, player);
+              this.spawnTimerMs = 600 + Math.floor(Math.random() * 500);
+            }
+
+            if (this.queue.length === 0 && state.enemies.filter((enemy) => enemy.alive).length === 0) {
+              this.state = "WAITING";
+              this.wave += 1;
+              this.timerMs = WAIT_MS;
+            }
+          },
+        };
+      }
+
+      function composition(wave) {
+        return {
+          rat: Math.max(2, 7 - wave),
+          bat: wave > 2 ? Math.min(wave - 1, 3) : 0,
+          slime: wave > 1 ? Math.min(wave, 4) : 0,
+          skeleton: wave > 2 ? Math.min(wave - 1, 4) : 0,
+          fish: wave > 3 ? Math.min(wave - 2, 3) : 0,
+          wraith: wave > 4 ? Math.min(wave - 3, 3) : 0,
+          golem: wave > 5 ? Math.min(wave - 4, 2) : 0,
+        };
+      }
+
+      function shuffle(list) {
+        for (let i = list.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
+        }
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function len(x, y) {
+        return Math.hypot(x, y);
+      }
+
+      function worldToScreenX(x) {
+        return x - state.camera.x;
+      }
+
+      function worldToScreenY(y) {
+        return y - state.camera.y;
+      }
+
+      function createEnemy(type, x, y) {
+        const def = ENEMY_DEFS[type] || ENEMY_DEFS.rat;
+        const waveScale = state.waveSystem.wave;
+        const hpScale = Math.max(1, 1 + (waveScale - 5) * 0.07);
+        const dmgScale = Math.max(1, 1 + (waveScale - 5) * 0.02);
+
+        return {
+          type,
+          x,
+          y,
+          size: def.size,
+          color: def.color,
+          hp: Math.ceil(def.hp * hpScale),
+          maxHp: Math.ceil(def.hp * hpScale),
+          damage: def.damage * dmgScale,
+          speed: def.speed,
+          xpReward: def.xp,
+          alive: true,
+          hitFlash: 0,
+        };
+      }
+
+      function createProjectile(x, y, vx, vy, options = {}) {
+        return {
+          x,
+          y,
+          vx,
+          vy,
+          damage: options.damage ?? 1,
+          lifeMs: options.lifeMs ?? 1000,
+          size: options.size ?? 6,
+          color: options.color ?? "#ffd34d",
+          alive: true,
+        };
+      }
+
+      function createFloater(x, y, text, color = "#ffe78a") {
+        return {
+          x,
+          y,
+          text,
+          color,
+          lifeMs: 650,
+          vy: -28,
+        };
+      }
+
+      function loadSlots() {
+        try {
+          const raw = localStorage.getItem(STORAGE_SAVE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length === 3) {
+            state.slots = parsed;
+          }
+        } catch {
+          state.slots = [null, null, null];
+        }
+      }
+
+      function saveSlots() {
+        try {
+          localStorage.setItem(STORAGE_SAVE_KEY, JSON.stringify(state.slots));
+        } catch {
+          /* ignore */
+        }
+      }
+
+      function loadSettings() {
+        try {
+          const raw = localStorage.getItem(STORAGE_SETTINGS_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            state.settings = { ...state.settings, ...parsed };
+          }
+        } catch {
+          state.settings = {
+            resolutionScale: 1,
+            fullscreen: false,
+            devMode: false,
+          };
+        }
+      }
+
+      function saveSettings() {
+        try {
+          localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(state.settings));
+        } catch {
+          /* ignore */
+        }
+      }
+
+      function resetRun() {
+        state.player = createBasePlayer();
+        state.run = createBaseRun();
+        state.enemies = [];
+        state.projectiles = [];
+        state.floaters = [];
+        state.dead = false;
+        state.waveSystem.reset(1);
+      }
+
+      function gainXp(amount) {
+        state.player.xp += Math.round(amount);
+        let leveled = false;
+        while (state.player.xp >= state.player.xpNext) {
+          state.player.xp -= state.player.xpNext;
+          state.player.level += 1;
+          state.player.xpNext = Math.floor(state.player.xpNext * 1.45);
+          state.player.life = state.player.maxLife;
+          leveled = true;
+        }
+        return leveled;
+      }
+
+      function saveToSlot(index) {
+        if (index < 0 || index > 2) return;
+        state.slots[index] = {
+          player: { ...state.player },
+          run: { ...state.run },
+          savedAt: new Date().toISOString(),
+        };
+        saveSlots();
+      }
+
+      function loadFromSlot(index) {
+        if (index < 0 || index > 2) return false;
+        const slot = state.slots[index];
+        if (!slot) return false;
+        state.player = { ...createBasePlayer(), ...(slot.player || {}) };
+        state.run = { ...createBaseRun(), ...(slot.run || {}) };
+        state.enemies = [];
+        state.projectiles = [];
+        state.floaters = [];
+        state.dead = false;
+        state.waveSystem.reset(state.run.wave || 1);
+        return true;
+      }
+
+      function deleteSlot(index) {
+        if (index < 0 || index > 2) return;
+        state.slots[index] = null;
+        saveSlots();
+      }
+
+      function setScreen(nextScreen) {
+        state.screen = nextScreen;
+        renderOverlay();
+        hud.classList.toggle("hidden", nextScreen !== "play" && nextScreen !== "pause");
+      }
+
+      function showToast(message, kind = "info", duration = 1400) {
+        state.toastText = message;
+        state.toastLevel = kind;
+        state.toastTimer = duration;
+        toast.textContent = message;
+        toast.style.borderColor = kind === "danger" ? "rgba(255, 122, 122, 0.42)" : kind === "success" ? "rgba(169, 255, 184, 0.4)" : "rgba(150, 200, 255, 0.22)";
+        toast.classList.add("show");
+      }
+
+      function chooseLevelUpOptions() {
+        const pool = [...UPGRADES];
+        shuffle(pool);
+        state.levelUpOptions = pool.slice(0, 3);
+      }
+
+      function beginLevelUp() {
+        chooseLevelUpOptions();
+        setScreen("levelup");
+      }
+
+      function resumePlay() {
+        setScreen("play");
+      }
+
+      function toggleFullscreen() {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+          state.settings.fullscreen = false;
+        } else {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+          state.settings.fullscreen = true;
+        }
+        saveSettings();
+        renderOverlay();
+      }
+
+      function applyDamageToPlayer(amount) {
+        if (state.player.invulnMs > 0) return;
+        state.player.invulnMs = 450;
+        const damage = Math.max(1, Math.round(amount - state.player.armor));
+        state.player.life = Math.max(0, state.player.life - damage);
+        showToast(`-${damage} HP`, "danger", 650);
+        if (state.player.life <= 0) {
+          state.player.life = 0;
+          state.dead = true;
+          setScreen("dead");
+        }
+      }
+
+      function spawnEnemy(type, player) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 280 + Math.random() * 140;
+        const x = clamp(player.x + Math.cos(angle) * dist, 20, WORLD.width - 20);
+        const y = clamp(player.y + Math.sin(angle) * dist, 20, WORLD.height - 20);
+        state.enemies.push(createEnemy(type, x, y));
+      }
+
+      function firePrimary() {
+        const dx = state.pointer.worldX - state.player.x;
+        const dy = state.pointer.worldY - state.player.y;
+        const distance = len(dx, dy) || 1;
+        const speed = 420;
+        state.projectiles.push(
+          createProjectile(
+            state.player.x,
+            state.player.y,
+            (dx / distance) * speed,
+            (dy / distance) * speed,
+            { damage: state.player.attackDamage, lifeMs: 1200, size: 7, color: "#ffcf5a" }
+          )
+        );
+        state.player.attackCooldownMs = state.player.attackCooldownMsBase ?? state.player.attackCooldownMs;
+      }
+
+      function attackReady() {
+        return state.player.attackCooldownMs <= 0;
+      }
+
+      function startAttackCooldown() {
+        state.player.attackCooldownMs = state.player.attackCooldownMsBase ?? 420;
+      }
+
+      function takeAttackCooldown(delta) {
+        if (state.player.attackCooldownMs > 0) {
+          state.player.attackCooldownMs -= delta;
+        }
+      }
+
+      function preparePlayerRuntimeStats() {
+        if (typeof state.player.attackCooldownMsBase !== "number") {
+          state.player.attackCooldownMsBase = state.player.attackCooldownMs;
+        }
+        if (typeof state.player.invulnMs !== "number") {
+          state.player.invulnMs = 0;
+        }
+      }
+
+      function updatePointerWorld() {
+        state.pointer.worldX = state.pointer.x + state.camera.x;
+        state.pointer.worldY = state.pointer.y + state.camera.y;
+      }
+
+      function updateCamera() {
+        state.camera.x = clamp(state.player.x - state.screenSize.width / 2, 0, WORLD.width - state.screenSize.width);
+        state.camera.y = clamp(state.player.y - state.screenSize.height / 2, 0, WORLD.height - state.screenSize.height);
+      }
+
+      function updateGameplay(delta) {
+        preparePlayerRuntimeStats();
+        updatePointerWorld();
+
+        if (justPressed("escape")) {
+          setScreen("pause");
+          return;
+        }
+
+        if (justPressed("f5")) {
+          saveToSlot(0);
+          showToast("Salvo no slot 1", "success");
+        }
+
+        let vx = 0;
+        let vy = 0;
+        if (isDown("w")) vy -= 1;
+        if (isDown("s")) vy += 1;
+        if (isDown("a")) vx -= 1;
+        if (isDown("d")) vx += 1;
+
+        if (vx !== 0 && vy !== 0) {
+          const inv = Math.SQRT1_2;
+          vx *= inv;
+          vy *= inv;
+        }
+
+        state.player.x = clamp(state.player.x + vx * state.player.speed * (delta / 1000), 20, WORLD.width - 20);
+        state.player.y = clamp(state.player.y + vy * state.player.speed * (delta / 1000), 20, WORLD.height - 20);
+
+        if (state.player.invulnMs > 0) {
+          state.player.invulnMs = Math.max(0, state.player.invulnMs - delta);
+        }
+
+        takeAttackCooldown(delta);
+
+        if ((state.pointer.down || isDown(" ")) && attackReady()) {
+          firePrimary();
+          startAttackCooldown();
+        }
+
+        for (const projectile of state.projectiles) {
+          if (!projectile.alive) continue;
+          projectile.x += projectile.vx * (delta / 1000);
+          projectile.y += projectile.vy * (delta / 1000);
+          projectile.lifeMs -= delta;
+          if (projectile.lifeMs <= 0) projectile.alive = false;
+        }
+
+        for (const enemy of state.enemies) {
+          if (!enemy.alive) continue;
+          const dx = state.player.x - enemy.x;
+          const dy = state.player.y - enemy.y;
+          const distance = len(dx, dy) || 1;
+          enemy.x += (dx / distance) * enemy.speed * (delta / 1000);
+          enemy.y += (dy / distance) * enemy.speed * (delta / 1000);
+          enemy.hitFlash = Math.max(0, enemy.hitFlash - delta);
+        }
+
+        for (const floater of state.floaters) {
+          floater.lifeMs -= delta;
+          floater.y += floater.vy * (delta / 1000);
+        }
+
+        handleProjectileHits();
+        handleEnemyHits();
+
+        state.projectiles = state.projectiles.filter((item) => item.alive);
+        state.enemies = state.enemies.filter((item) => item.alive);
+        state.floaters = state.floaters.filter((item) => item.lifeMs > 0);
+
+        state.waveSystem.update(delta, state.player, spawnEnemy);
+        state.run.wave = state.waveSystem.wave;
+
+        updateCamera();
+
+        hudLine.innerHTML = [
+          `<strong>HP</strong> ${state.player.life}/${state.player.maxLife}`,
+          `<strong>LV</strong> ${state.player.level}`,
+          `<strong>XP</strong> ${state.player.xp}/${state.player.xpNext}`,
+          `<strong>WAVE</strong> ${state.run.wave}`,
+          `<strong>KILLS</strong> ${state.run.kills}`,
+        ].join("   ");
+        hudHint.textContent = "ESC pause | F5 save | Mouse / SPACE to attack";
+      }
+
+      function handleProjectileHits() {
+        for (const projectile of state.projectiles) {
+          if (!projectile.alive) continue;
+          for (const enemy of state.enemies) {
+            if (!enemy.alive) continue;
+            const dx = projectile.x - enemy.x;
+            const dy = projectile.y - enemy.y;
+            if (len(dx, dy) <= projectile.size + enemy.size) {
+              projectile.alive = false;
+              enemy.hp -= projectile.damage;
+              enemy.hitFlash = 120;
+              if (enemy.hp <= 0) {
+                enemy.alive = false;
+                state.run.kills += 1;
+                state.run.gold += 1;
+                state.floaters.push(createFloater(enemy.x, enemy.y, `+${enemy.xpReward} XP`));
+                const leveled = gainXp(enemy.xpReward);
+                if (leveled) {
+                    state.waveSystem.state = "WAITING";
+                    state.waveSystem.timerMs = 999999;
+                  beginLevelUp();
+                }
+              } else {
+                state.floaters.push(createFloater(enemy.x, enemy.y, `-${Math.max(1, Math.round(projectile.damage))}`, "#ffe08a"));
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      function handleEnemyHits() {
+        for (const enemy of state.enemies) {
+          if (!enemy.alive) continue;
+          const dx = state.player.x - enemy.x;
+          const dy = state.player.y - enemy.y;
+          if (len(dx, dy) <= 14 + enemy.size) {
+            if (state.player.invulnMs <= 0) {
+              applyDamageToPlayer(enemy.damage);
+            }
+          }
+        }
+      }
+
+      function render() {
+        const width = state.screenSize.width;
+        const height = state.screenSize.height;
+
+        drawBackdrop(width, height);
+        drawWorld(width, height);
+        drawHudExtras(width, height);
+        drawFloatingTexts();
+
+        if (state.screen === "play" && state.waveSystem.state === "WAITING" && state.waveSystem.timerMs > 0 && state.enemies.length === 0) {
+          drawCenterBanner(`Nova wave em ${(state.waveSystem.timerMs / 1000).toFixed(1)}s`, "Pressione SPACE ou clique para atacar");
+        }
+
+        if (state.settings.devMode) {
+          drawDevOverlay();
+        }
+
+        if (state.screen === "dead") {
+          drawDimmedOverlay();
+        }
+      }
+
+      function drawBackdrop(width, height) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, "#0a121c");
+        gradient.addColorStop(0.55, "#102031");
+        gradient.addColorStop(1, "#0a121a");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        const grid = 64;
+        const startX = -((state.camera.x * 0.5) % grid);
+        const startY = -((state.camera.y * 0.5) % grid);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(151, 195, 230, 0.07)";
+        for (let x = startX; x < width; x += grid) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+        for (let y = startY; y < height; y += grid) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        const vignette = ctx.createRadialGradient(width * 0.5, height * 0.45, Math.min(width, height) * 0.1, width * 0.5, height * 0.5, Math.max(width, height) * 0.74);
+        vignette.addColorStop(0, "rgba(255,255,255,0.03)");
+        vignette.addColorStop(1, "rgba(0,0,0,0.42)");
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      function drawWorld(width, height) {
+        const playerScreenX = worldToScreenX(state.player.x);
+        const playerScreenY = worldToScreenY(state.player.y);
+
+        drawWorldBoundaries();
+
+        for (const projectile of state.projectiles) {
+          if (!projectile.alive) continue;
+          drawGlow(projectile.x - state.camera.x, projectile.y - state.camera.y, projectile.size * 3.2, projectile.color, 0.22);
+          ctx.beginPath();
+          ctx.fillStyle = projectile.color;
+          ctx.arc(projectile.x - state.camera.x, projectile.y - state.camera.y, projectile.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        for (const enemy of state.enemies) {
+          if (!enemy.alive) continue;
+          const sx = worldToScreenX(enemy.x);
+          const sy = worldToScreenY(enemy.y);
+          const hitFlash = enemy.hitFlash > 0;
+          drawEnemySprite(sx, sy, enemy.size, enemy.color, hitFlash, enemy.hp / enemy.maxHp);
+        }
+
+        drawPlayerSprite(playerScreenX, playerScreenY);
+
+        if (state.screen === "dead") {
+          drawDeathPulse(playerScreenX, playerScreenY);
+        }
+      }
+
+      function drawWorldBoundaries() {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+        ctx.lineWidth = 6;
+        ctx.strokeRect(-state.camera.x + 12, -state.camera.y + 12, WORLD.width - 24, WORLD.height - 24);
+        ctx.restore();
+      }
+
+      function drawGlow(x, y, radius, color, alpha = 0.2) {
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        glow.addColorStop(0, colorToRgba(color, alpha));
+        glow.addColorStop(1, colorToRgba(color, 0));
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawPlayerSprite(x, y) {
+        const size = 18;
+        const alpha = state.player.invulnMs > 0 && Math.floor(state.player.invulnMs / 50) % 2 === 0 ? 0.55 : 1;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        drawGlow(x, y, 28, "#6ba8ff", 0.22);
+        ctx.translate(x, y);
+        ctx.fillStyle = "#4f7dff";
+        ctx.strokeStyle = "#cfe5ff";
+        ctx.lineWidth = 2;
+        roundRect(-size / 2, -size / 2, size, size, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#d9ebff";
+        ctx.fillRect(-3, -10, 6, 5);
+        ctx.fillStyle = "#1c2c4b";
+        ctx.fillRect(-2, -2, 4, 4);
+        ctx.restore();
+      }
+
+      function drawEnemySprite(x, y, size, color, flash = false, hpRatio = 1) {
+        ctx.save();
+        drawGlow(x, y, size * 1.9, color, flash ? 0.34 : 0.18);
+        ctx.translate(x, y);
+        ctx.fillStyle = flash ? "#ffffff" : color;
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.lineWidth = 1.5;
+        roundRect(-size, -size, size * 2, size * 2, Math.max(4, size * 0.55));
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0,0,0,0.18)";
+        ctx.fillRect(-size, size * 0.4, size * 2, Math.max(3, size * 0.18));
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillRect(-size * 0.35, -size * 0.2, size * 0.18, size * 0.18);
+        ctx.fillRect(size * 0.17, -size * 0.2, size * 0.18, size * 0.18);
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.fillRect(-size, -size - 8, size * 2, 3);
+        ctx.fillStyle = "rgba(255,255,255,0.14)";
+        ctx.fillRect(-size, -size - 8, size * 2 * hpRatio, 3);
+        ctx.restore();
+      }
+
+      function drawDeathPulse(x, y) {
+        const pulse = 1 + Math.sin(performance.now() / 120) * 0.08;
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        drawGlow(x, y, 64 * pulse, "#ff6b6b", 0.3);
+        ctx.restore();
+      }
+
+      function drawHudExtras(width, height) {
+        if (state.screen !== "play" && state.screen !== "pause") return;
+        if (state.screen === "pause") {
+          return;
+        }
+
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.font = "bold 26px Trebuchet MS, sans-serif";
+        if (state.waveSystem.state === "WAITING") {
+          ctx.fillText(`Wave ${state.run.wave}`, width * 0.5, 62);
+          ctx.font = "15px Trebuchet MS, sans-serif";
+          ctx.fillStyle = "rgba(211, 231, 248, 0.8)";
+          ctx.fillText(`Proxima onda em ${(state.waveSystem.timerMs / 1000).toFixed(1)}s`, width * 0.5, 86);
+        } else {
+          ctx.fillText(`Wave ${state.run.wave}`, width * 0.5, 62);
+        }
+        ctx.restore();
+      }
+
+      function drawFloatingTexts() {
+        if (state.floaters.length === 0) return;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "15px Trebuchet MS, sans-serif";
+        for (const floater of state.floaters) {
+          const alpha = clamp(floater.lifeMs / 650, 0, 1);
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = floater.color;
+          ctx.fillText(floater.text, floater.x - state.camera.x, floater.y - state.camera.y);
+        }
+        ctx.restore();
+      }
+
+      function drawCenterBanner(title, detail) {
+        const width = state.screenSize.width;
+        const height = state.screenSize.height;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(6,10,16,0.72)";
+        ctx.strokeStyle = "rgba(126, 208, 255, 0.18)";
+        ctx.lineWidth = 1;
+        roundRect(width * 0.5 - 220, height * 0.5 - 50, 440, 100, 22);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#f0f8ff";
+        ctx.font = "bold 26px Trebuchet MS, sans-serif";
+        ctx.fillText(title, width * 0.5, height * 0.5 - 5);
+        ctx.fillStyle = "#9bb7d2";
+        ctx.font = "14px Trebuchet MS, sans-serif";
+        ctx.fillText(detail, width * 0.5, height * 0.5 + 22);
+        ctx.restore();
+      }
+
+      function drawDimmedOverlay() {
+        const width = state.screenSize.width;
+        const height = state.screenSize.height;
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.36)";
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+      }
+
+      function drawDevOverlay() {
+        const width = state.screenSize.width;
+        ctx.save();
+        ctx.fillStyle = "rgba(3, 8, 14, 0.72)";
+        ctx.strokeStyle = "rgba(126, 208, 255, 0.24)";
+        roundRect(16, state.screenSize.height - 96, 250, 78, 16);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#cfe5ff";
+        ctx.font = "13px Trebuchet MS, sans-serif";
+        ctx.fillText(`FPS: ${state.fps.toFixed(0)}`, 28, state.screenSize.height - 66);
+        ctx.fillText(`Enemies: ${state.enemies.filter((e) => e.alive).length}`, 28, state.screenSize.height - 46);
+        ctx.fillText(`Wave state: ${state.waveSystem.state}`, 28, state.screenSize.height - 26);
+        ctx.restore();
+      }
+
+      function roundRect(x, y, width, height, radius = 12) {
+        const r = Math.min(radius, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+      }
+
+      function colorToRgba(color, alpha) {
+        const hex = color.replace("#", "");
+        const num = Number.parseInt(hex, 16);
+        const r = (num >> 16) & 255;
+        const g = (num >> 8) & 255;
+        const b = num & 255;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function renderOverlay() {
+        if (state.screen === "play") {
+          overlay.style.display = "none";
+          overlay.innerHTML = "";
+          return;
+        }
+
+        overlay.style.display = "flex";
+        overlay.innerHTML = getOverlayMarkup();
+      }
+
+      function getOverlayMarkup() {
+        switch (state.screen) {
+          case "menu":
+            return `
+              <section class="panel">
+                <div class="panelHeader">
+                  <div>
+                    <h1 class="title">Dungeon4Fun</h1>
+                    <div class="subtitle">HTML5 nativo • sem build externa</div>
+                  </div>
+                  <div class="bigNote">Aventura, wave, slots e upgrades</div>
+                </div>
+
+                <div class="screenBody twoCols">
+                  <div class="menuGrid panelGrid">
+                    <div class="menuCard">
+                      <div class="sectionTitle">Jogar</div>
+                      <p>Entre direto na arena, sobreviva as waves e escolha melhorias quando subir de nivel.</p>
+                      <div class="separator"></div>
+                      <div class="actions">
+                        <button class="btn primary" data-action="new-game">Novo Jogo</button>
+                        <button class="btn ghost" data-action="load-slot">Carregar Slot</button>
+                        <button class="btn ghost" data-action="save-slot">Salvar Slot</button>
+                      </div>
+                    </div>
+
+                    <div class="menuCard">
+                      <div class="sectionTitle">Sistema</div>
+                      <p>A configuracao salva em localStorage e o jogo roda nativamente no index.html servido pela GUI.</p>
+                      <div class="separator"></div>
+                      <div class="actions">
+                        <button class="btn accent" data-action="config">Configuracoes</button>
+                        <button class="btn ghost" data-action="book">Bestiario / Livro</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="stack">
+                    <div class="menuCard">
+                      <div class="sectionTitle">Controles</div>
+                      <div class="stack">
+                        <p><strong>WASD</strong> mover</p>
+                        <p><strong>Mouse</strong> ou <strong>SPACE</strong> atirar</p>
+                        <p><strong>ESC</strong> pausar</p>
+                        <p><strong>F5</strong> salvar no slot 1</p>
+                      </div>
+                    </div>
+                    <div class="menuCard">
+                      <div class="sectionTitle">Estado atual</div>
+                      <p>Wave ${state.run.wave} • Lv ${state.player.level} • Kills ${state.run.kills}</p>
+                      <div class="separator"></div>
+                      <p class="mini">Sem dependencias de build: o front-end abre diretamente <code>/gui_game/index.html</code>.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>`;
+
+          case "slots":
+            return `
+              <section class="panel">
+                <div class="panelHeader">
+                  <div>
+                    <h1 class="title">Slots</h1>
+                    <div class="subtitle">${state.slotMode === "load" ? "Carregar progresso salvo" : "Salvar progresso atual"}</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn ghost" data-action="back-menu">Voltar</button>
+                  </div>
+                </div>
+
+                <div class="slotList">
+                  ${state.slots.map((slot, index) => renderSlotCard(slot, index)).join("")}
+                </div>
+              </section>`;
+
+          case "config":
+            return `
+              <section class="panel">
+                <div class="panelHeader">
+                  <div>
+                    <h1 class="title">Configuracoes</h1>
+                    <div class="subtitle">Ajustes visuais e estado do jogo</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn ghost" data-action="back-menu">Voltar</button>
+                  </div>
+                </div>
+
+                <div class="configList">
+                  ${renderConfigCard("Fullscreen", state.settings.fullscreen ? "ON" : "OFF", "Alterna a tela cheia do navegador.", "toggle-fullscreen")}
+                  ${renderConfigCard("Dev mode", state.settings.devMode ? "ON" : "OFF", "Mostra depuracao extra no canto inferior.", "toggle-devmode")}
+                  ${renderConfigCard("Resolucao interna", `${state.settings.resolutionScale}x`, "Mantido salvo para compatibilidade com o formato original.", "cycle-scale")}
+                </div>
+              </section>`;
+
+          case "book":
+            return `
+              <section class="panel">
+                <div class="panelHeader">
+                  <div>
+                    <h1 class="title">Bestiario</h1>
+                    <div class="subtitle">Livro de monstros da arena</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn ghost" data-action="back-menu">Voltar</button>
+                  </div>
+                </div>
+
+                <div class="bookList">
+                  ${BESTIARY.map(([name, desc]) => `
+                    <article class="bookCard">
+                      <div class="bookRow">
+                        <div class="bookMeta">
+                          <strong>${escapeHtml(name)}</strong>
+                          <p>${escapeHtml(desc)}</p>
+                        </div>
+                        <div class="mini">Tipo hostil</div>
+                      </div>
+                    </article>
+                  `).join("")}
+                </div>
+              </section>`;
+
+          case "pause":
+            return `
+              <section class="panel centered" style="max-width: 640px;">
+                <div class="panelHeader centered" style="justify-content: center; margin-bottom: 10px;">
+                  <div>
+                    <h1 class="title">Pausado</h1>
+                    <div class="subtitle">ESC para continuar</div>
+                  </div>
+                </div>
+                <div class="stack" style="margin-top: 16px; justify-items: center;">
+                  <div class="actions" style="justify-content: center;">
+                    <button class="btn primary" data-action="resume">Continuar</button>
+                    <button class="btn ghost" data-action="menu-from-pause">Menu</button>
+                  </div>
+                </div>
+              </section>`;
+
+          case "levelup":
+            return `
+              <section class="panel" style="max-width: 780px;">
+                <div class="panelHeader">
+                  <div>
+                    <h1 class="title">Level Up</h1>
+                    <div class="subtitle">Escolha 1 melhoria</div>
+                  </div>
+                  <div class="bigNote">${state.player.level}</div>
+                </div>
+
+                <div class="panelGrid">
+                  ${state.levelUpOptions.map((option, index) => `
+                    <article class="optionCard" data-action="pick-upgrade" data-index="${index}">
+                      <div class="optionRow">
+                        <div class="optionMeta">
+                          <strong>${escapeHtml(option.title)}</strong>
+                          <p>${escapeHtml(option.detail)}</p>
+                        </div>
+                        <button class="btn small accent" type="button">Escolher</button>
+                      </div>
+                    </article>
+                  `).join("")}
+                </div>
+              </section>`;
+
+          case "dead":
+            return `
+              <section class="panel centered" style="max-width: 660px;">
+                <div class="panelHeader centered" style="justify-content: center; margin-bottom: 16px;">
+                  <div>
+                    <h1 class="title" style="color: var(--danger);">YOU DIED</h1>
+                    <div class="subtitle">Clique para voltar ao menu</div>
+                  </div>
+                </div>
+                <div class="stack centered">
+                  <p class="bigNote">Wave ${state.run.wave} • Kills ${state.run.kills}</p>
+                  <div class="actions" style="justify-content: center;">
+                    <button class="btn primary" data-action="menu-dead">Voltar ao menu</button>
+                  </div>
+                </div>
+              </section>`;
+
+          default:
+            return "";
+        }
+      }
+
+      function renderSlotCard(slot, index) {
+        const title = slot ? `Slot ${index + 1} - Lv ${slot.player?.level ?? 1} | Wave ${slot.run?.wave ?? 1}` : `Slot ${index + 1} - vazio`;
+        const detail = slot ? `Salvo em ${slot.savedAt ? new Date(slot.savedAt).toLocaleString() : "data desconhecida"}` : "Nenhum progresso armazenado";
+        const primaryLabel = state.slotMode === "load" ? "Carregar" : "Salvar aqui";
+        const primaryAction = state.slotMode === "load" ? "load-slot-entry" : "save-slot-entry";
+
+        return `
+          <article class="slotCard">
+            <div class="slotRow">
+              <div class="slotMeta">
+                <strong>${escapeHtml(title)}</strong>
+                <p>${escapeHtml(detail)}</p>
+              </div>
+              <div class="actions">
+                <button class="btn ${state.slotMode === "load" ? "primary" : "accent"}" data-action="${primaryAction}" data-index="${index}">${primaryLabel}</button>
+                <button class="btn danger" data-action="delete-slot" data-index="${index}">Apagar</button>
+              </div>
+            </div>
+          </article>`;
+      }
+
+      function renderConfigCard(title, value, detail, action) {
+        return `
+          <article class="configCard">
+            <div class="configRow">
+              <div class="configMeta">
+                <strong>${escapeHtml(title)}</strong>
+                <p>${escapeHtml(detail)}</p>
+              </div>
+              <div class="actions">
+                <button class="btn ${action === "toggle-fullscreen" ? "primary" : "ghost"}" data-action="${action}">${escapeHtml(value)}</button>
+              </div>
+            </div>
+          </article>`;
+      }
+
+      function isDown(key) {
+        return !!state.keys[key];
+      }
+
+      function justPressed(key) {
+        return !!state.keys[`just:${key}`];
+      }
+
+      function markKeyDown(key) {
+        state.keys[key] = true;
+        state.keys[`just:${key}`] = true;
+      }
+
+      function markKeyUp(key) {
+        state.keys[key] = false;
+      }
+
+      function clearJustPressed() {
+        for (const key of Object.keys(state.keys)) {
+          if (key.startsWith("just:")) delete state.keys[key];
+        }
+      }
+
+      function resizeCanvas() {
+        const cssWidth = Math.max(640, window.innerWidth);
+        const cssHeight = Math.max(360, window.innerHeight);
+        const dpr = Math.min(window.devicePixelRatio || 1, dprLimit);
+        state.screenSize.width = cssWidth;
+        state.screenSize.height = cssHeight;
+        canvas.width = Math.floor(cssWidth * dpr);
+        canvas.height = Math.floor(cssHeight * dpr);
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        updateCamera();
+      }
+
+      function onPointerMove(event) {
+        const rect = canvas.getBoundingClientRect();
+        state.pointer.x = event.clientX - rect.left;
+        state.pointer.y = event.clientY - rect.top;
+        updatePointerWorld();
+      }
+
+      function onPointerDown(event) {
+        if (state.screen !== "play") return;
+        state.pointer.down = true;
+        onPointerMove(event);
+      }
+
+      function onPointerUp() {
+        state.pointer.down = false;
+      }
+
+      function onKeyDown(event) {
+        const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
+        markKeyDown(key);
+
+        if (event.key === "Escape") event.preventDefault();
+        if (event.key === " " || event.key === "Spacebar") event.preventDefault();
+        if (event.key === "F5") event.preventDefault();
+
+        if (state.screen === "play" && event.key === "Escape") {
+          setScreen("pause");
+        } else if (state.screen === "pause" && event.key === "Escape") {
+          resumePlay();
+        }
+      }
+
+      function onKeyUp(event) {
+        const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
+        markKeyUp(key);
+      }
+
+      function tick(ts) {
+        const delta = clamp(ts - state.lastTs, 0, 48);
+        state.lastTs = ts;
+
+        if (state.toastTimer > 0) {
+          state.toastTimer -= delta;
+          if (state.toastTimer <= 0) {
+            toast.classList.remove("show");
+          }
+        }
+
+        state.fpsFrames += 1;
+        state.fpsTimer += delta;
+        if (state.fpsTimer >= 500) {
+          state.fps = (state.fpsFrames * 1000) / state.fpsTimer;
+          state.fpsFrames = 0;
+          state.fpsTimer = 0;
+        }
+
+        if (state.screen === "play") {
+          updateGameplay(delta);
+        } else {
+          hud.classList.add("hidden");
+          if (state.screen === "pause") {
+            hud.classList.remove("hidden");
+            hudLine.textContent = `Wave ${state.run.wave}   Lv ${state.player.level}   HP ${state.player.life}/${state.player.maxLife}`;
+            hudHint.textContent = "Pausado";
+          }
+        }
+
+        render();
+        clearJustPressed();
+        requestAnimationFrame(tick);
+      }
+
+      overlay.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-action]");
+        if (!target) return;
+        const action = target.dataset.action;
+        const index = Number(target.dataset.index);
+
+        if (action === "new-game") {
+          resetRun();
+          setScreen("play");
+          showToast("Nova partida iniciada", "success");
+          return;
+        }
+
+        if (action === "load-slot") {
+          state.slotMode = "load";
+          setScreen("slots");
+          return;
+        }
+
+        if (action === "save-slot") {
+          state.slotMode = "save";
+          setScreen("slots");
+          return;
+        }
+
+        if (action === "book") {
+          setScreen("book");
+          return;
+        }
+
+        if (action === "config") {
+          setScreen("config");
+          return;
+        }
+
+        if (action === "back-menu") {
+          setScreen("menu");
+          return;
+        }
+
+        if (action === "resume") {
+          resumePlay();
+          return;
+        }
+
+        if (action === "menu-from-pause" || action === "menu-dead") {
+          setScreen("menu");
+          return;
+        }
+
+        if (action === "toggle-fullscreen") {
+          toggleFullscreen();
+          return;
+        }
+
+        if (action === "toggle-devmode") {
+          state.settings.devMode = !state.settings.devMode;
+          saveSettings();
+          renderOverlay();
+          return;
+        }
+
+        if (action === "cycle-scale") {
+          const options = [1, 1.25, 1.5];
+          const currentIndex = options.indexOf(state.settings.resolutionScale);
+          state.settings.resolutionScale = options[(currentIndex + 1) % options.length];
+          saveSettings();
+          renderOverlay();
+          return;
+        }
+
+        if (action === "load-slot-entry") {
+          if (loadFromSlot(index)) {
+            setScreen("play");
+            showToast(`Slot ${index + 1} carregado`, "success");
+          } else {
+            showToast("Slot vazio", "danger");
+          }
+          return;
+        }
+
+        if (action === "save-slot-entry") {
+          saveToSlot(index);
+          renderOverlay();
+          showToast(`Slot ${index + 1} salvo`, "success");
+          return;
+        }
+
+        if (action === "delete-slot") {
+          deleteSlot(index);
+          renderOverlay();
+          showToast(`Slot ${index + 1} apagado`, "danger");
+          return;
+        }
+
+        if (action === "pick-upgrade") {
+          const option = state.levelUpOptions[index];
+          if (!option) return;
+          option.apply(state.player);
+          state.player.attackCooldownMsBase = state.player.attackCooldownMs;
+          resumePlay();
+          showToast(option.title, "success");
+          return;
+        }
+      });
+
+      canvas.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("pointerdown", onPointerDown);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("blur", () => {
+        state.pointer.down = false;
+      });
+
+      window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("keyup", onKeyUp);
+      window.addEventListener("resize", resizeCanvas);
+      document.addEventListener("fullscreenchange", () => {
+        state.settings.fullscreen = !!document.fullscreenElement;
+        saveSettings();
+        renderOverlay();
+      });
+
+      loadSlots();
+      loadSettings();
+      resizeCanvas();
+      renderOverlay();
+      hud.classList.add("hidden");
+      showToast("Dungeon4Fun pronto", "success", 1100);
+      requestAnimationFrame(tick);
+    </script>
   </body>
 </html>

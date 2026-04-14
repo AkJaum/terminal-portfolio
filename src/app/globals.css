@@ -3,6 +3,8 @@ html, body {
   color: #ffffff;
   font-family: monospace;
   height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 @keyframes blink {

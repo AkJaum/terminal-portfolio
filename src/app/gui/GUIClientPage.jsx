@@ -12,6 +12,8 @@ import GameWindow from "../components/gui/GameWindow";
 import FileContentViewer from "../components/FileContentViewer";
 import style from "./guipage.module.css";
 
+const FULLSCREEN_PROMPT_DISMISSED_KEY = "gui-fullscreen-prompt-dismissed-v1";
+
 const SOCIAL_LINKS = {
   github: "https://github.com/akjaum",
   linkedin: "https://www.linkedin.com",
@@ -27,6 +29,8 @@ export default function GUIClientPage() {
   const [startMenuOpen, setStartMenuOpen] = useState(false);
   const [desktopBounds, setDesktopBounds] = useState({ width: 0, height: 0 });
   const [theme, setTheme] = useState(searchParams.get("theme") === "light" ? "light" : "dark");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
   const zCounterRef = useRef(5);
   const startMenuRef = useRef(null);
   const userName = useMemo(() => {
@@ -77,6 +81,37 @@ export default function GUIClientPage() {
 
     return () => clearInterval(timer);
   }, [clockDateFormatter, clockTimeFormatter]);
+
+  useEffect(() => {
+    setIsFullscreen(Boolean(document.fullscreenElement));
+
+    function handleFullscreenChange() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    let timer;
+    try {
+      const dismissed = window.localStorage.getItem(FULLSCREEN_PROMPT_DISMISSED_KEY) === "1";
+      if (!dismissed) {
+        timer = window.setTimeout(() => {
+          setShowFullscreenPrompt(true);
+        }, 280);
+      }
+    } catch {
+      timer = window.setTimeout(() => {
+        setShowFullscreenPrompt(true);
+      }, 280);
+    }
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     function measureDesktop() {
@@ -575,6 +610,50 @@ export default function GUIClientPage() {
     setTheme(nextTheme === "light" ? "light" : "dark");
   }
 
+  function persistFullscreenPromptDismissed() {
+    try {
+      window.localStorage.setItem(FULLSCREEN_PROMPT_DISMISSED_KEY, "1");
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  async function enterFullscreen() {
+    if (document.fullscreenElement) return;
+
+    const target = document.documentElement;
+    if (target?.requestFullscreen) {
+      await target.requestFullscreen();
+    }
+  }
+
+  async function toggleFullscreenMode() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen?.();
+      } else {
+        await enterFullscreen();
+      }
+    } catch {
+      // noop, browser may block without direct user gesture
+    }
+  }
+
+  async function acceptFullscreenPrompt() {
+    persistFullscreenPromptDismissed();
+    setShowFullscreenPrompt(false);
+    try {
+      await enterFullscreen();
+    } catch {
+      // noop
+    }
+  }
+
+  function declineFullscreenPrompt() {
+    persistFullscreenPromptDismissed();
+    setShowFullscreenPrompt(false);
+  }
+
   function openExternal(url) {
     window.open(url, "_blank", "noopener,noreferrer");
     setStartMenuOpen(false);
@@ -646,7 +725,7 @@ export default function GUIClientPage() {
         </div>
         <div className={style.taskbar}>
           <div className={style.startArea} ref={startMenuRef}>
-            <button type="button" onClick={toggleStartMenu} className={style.startButton}>⊞</button>
+            <button type="button" onClick={toggleStartMenu} className={style.startButton}>⚙️</button>
             {startMenuOpen && (
               <div className={style.startMenu}>
                 <div className={style.startProfile}>
@@ -672,6 +751,20 @@ export default function GUIClientPage() {
                       Dark
                     </button>
                   </div>
+                </div>
+
+                <div className={style.startSection}>
+                  <div className={style.startSectionTitle}>Configurações</div>
+                  <button
+                    type="button"
+                    className={style.startMenuItem}
+                    onClick={async () => {
+                      await toggleFullscreenMode();
+                      setStartMenuOpen(false);
+                    }}
+                  >
+                    {isFullscreen ? "Sair da tela cheia" : "Entrar em tela cheia"}
+                  </button>
                 </div>
 
                 <div className={style.startSection}>
@@ -789,6 +882,25 @@ export default function GUIClientPage() {
               </div>
             </div>
         </div>
+
+        {showFullscreenPrompt && (
+          <div className={style.fullscreenPromptOverlay} role="dialog" aria-modal="true" aria-labelledby="fullscreenPromptTitle">
+            <div className={style.fullscreenPromptCard}>
+              <h2 id="fullscreenPromptTitle" className={style.fullscreenPromptTitle}>Ativar tela cheia?</h2>
+              <p className={style.fullscreenPromptText}>
+                Para uma experiência melhor na GUI, deseja abrir em modo tela cheia?
+              </p>
+              <div className={style.fullscreenPromptActions}>
+                <button type="button" className={`${style.promptButton} ${style.promptButtonPrimary}`} onClick={acceptFullscreenPrompt}>
+                  Sim
+                </button>
+                <button type="button" className={`${style.promptButton} ${style.promptButtonGhost}`} onClick={declineFullscreenPrompt}>
+                  Não
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }

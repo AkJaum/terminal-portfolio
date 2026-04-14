@@ -1,7 +1,28 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _normalize_allowed_host(raw_value: str) -> str:
+    value = (raw_value or "").strip()
+    if not value:
+        return ""
+
+    if value.startswith("."):
+        return value
+
+    if "://" in value:
+        parsed = urlparse(value)
+        return (parsed.hostname or "").strip()
+
+    value = value.split("/", 1)[0].strip()
+    if value.count(":") == 1:
+        value = value.split(":", 1)[0].strip()
+
+    return value
+
 
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
@@ -9,12 +30,15 @@ SECRET_KEY = os.getenv(
 )
 DEBUG = False
 ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv(
-        "DJANGO_ALLOWED_HOSTS",
-        "localhost,127.0.0.1,project-runner",
-    ).split(",")
-    if host.strip()
+    host
+    for host in (
+        _normalize_allowed_host(item)
+        for item in os.getenv(
+            "DJANGO_ALLOWED_HOSTS",
+            "localhost,127.0.0.1,project-runner",
+        ).split(",")
+    )
+    if host
 ]
 APPEND_SLASH = False
 
