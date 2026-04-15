@@ -1,5 +1,5 @@
 // Backend core: terminal commands and business rules
-import { listEntriesAtPath, readFileAtPath, readFilePayloadAtPath, buildProjectAtPath, runProjectExecutableAtPath, scheduleProjectCleanup, cancelProjectCleanup } from "./runner.service";
+import { listEntriesAtPath, readFileAtPath, readFilePayloadAtPath, buildProjectAtPath, runProjectExecutableAtPath, resetProjectAtPath, scheduleProjectCleanup, cancelProjectCleanup } from "./runner.service";
 import { resolveProjectFromPath } from "./project.catalog";
 import { readFileSync } from "fs";
 import path from "path";
@@ -46,6 +46,12 @@ const HELP_ENTRIES = [
 		usage: "run <executavel> [args...]",
 		description: "Executa um binario do projeto no runner e exibe a saida na tela.",
 		example: "run ./dist/app",
+	},
+	{
+		command: "reclone",
+		usage: "reclone",
+		description: "Reclona/prepara novamente o projeto atual, resetando o workspace remoto.",
+		example: "reclone",
 	},
 	{
 		command: "pwd",
@@ -240,6 +246,8 @@ function help(commandName) {
 			"Comandos disponiveis:",
 			formatHelpTable(HELP_ENTRIES),
 			"",
+			"Atalho direto: ./<executavel> [args...]",
+			"",
 			"Dica: use help <comando> para ver detalhes de uso.",
 		].join("\n"),
 	};
@@ -283,6 +291,12 @@ function run(_fs, path, executable) {
 	if (!projectCtx) return { error: "Error: comando disponível apenas dentro de projetos" };
 	if (!executable) return { error: "Error: executável não especificado" };
 	return { output: "Use a API runtime para executar binários." };
+}
+
+function reclone(_fs, path) {
+	const projectCtx = resolveProjectFromPath(path);
+	if (!projectCtx) return { error: "Error: comando disponível apenas dentro de projetos" };
+	return { output: "Use a API runtime para resetar/reclonar o projeto." };
 }
 
 async function lsRuntime(path) {
@@ -395,6 +409,20 @@ async function runRuntime(path, executable, args = []) {
 	}
 }
 
+async function recloneRuntime(path) {
+	try {
+		const resetResult = await resetProjectAtPath(path);
+
+		return {
+			type: "reclone",
+			output: `[reclone] projeto ${resetResult.projectId} resetado com sucesso`,
+			success: true,
+		};
+	} catch (error) {
+		return { error: `Error: ${error?.message || "erro ao resetar projeto"}` };
+	}
+}
+
 async function cdRuntime(currentPath, target) {
 	const previousProjectCtx = resolveProjectFromPath(currentPath);
 
@@ -448,5 +476,5 @@ async function cdRuntime(currentPath, target) {
 	return { newPath };
 }
 
-export { COMMANDS, ls, cat, cd, pwd, help, clear, gui, aboutme, view, vim, make, run };
-export { lsRuntime, catRuntime, cdRuntime, viewRuntime, vimRuntime, makeRuntime, runRuntime };
+export { COMMANDS, ls, cat, cd, pwd, help, clear, gui, aboutme, view, vim, make, run, reclone };
+export { lsRuntime, catRuntime, cdRuntime, viewRuntime, vimRuntime, makeRuntime, runRuntime, recloneRuntime };

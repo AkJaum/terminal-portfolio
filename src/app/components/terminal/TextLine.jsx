@@ -7,6 +7,7 @@ export default function TextLine({ text, isLast }) {
     () => (typeof text === "string" ? text : String(text ?? "")).replaceAll("\t", "    "),
     [text]
   );
+  const displayText = lineText.length === 0 ? "\u00A0" : lineText;
 
   const { speed, step } = useMemo(() => getTypewriterConfig(lineText.length), [lineText.length]);
   const useTypewriter = useMemo(() => isLast && lineText.length > 0, [isLast, lineText.length]);
@@ -22,9 +23,9 @@ export default function TextLine({ text, isLast }) {
       }}
     >
       {useTypewriter ? (
-        <Typewriter text={lineText} speed={speed} step={step} />
+        <Typewriter text={displayText} speed={speed} step={step} />
       ) : (
-        lineText
+        displayText
       )}
     </div>
   );

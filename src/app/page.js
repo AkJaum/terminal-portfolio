@@ -14,13 +14,13 @@ const GUI_AVATARS = [
 
 const COPY = {
   "pt-BR": {
-    welcome: "Seja bem-vindo! Esse e o meu portfolio, selecione uma das opcoes abaixo para visualizar meus projetos",
+    welcome: "Seja bem-vindo! Esse é o meu portfolio, selecione uma das opções abaixo para visualizar meus projetos",
     guiTitle: "GUI",
     recommended: "(RECOMENDADO)",
     guiDescription: "Utilize um \"sistema operacional\" criado por mim para explorar conteudos do portfolio.",
-    guiDescriptionExtra: "Tambem e possivel acessar o terminal nesse ambiente.",
+    guiDescriptionExtra: "Tambem é possivel acessar o terminal nesse ambiente.",
     terminalTitle: "Terminal",
-    terminalDescription: "Se voce e um entusiasta de terminais e comandos, essa e a opcao para voce! Explore o portfolio usando uma interface de linha de comando inspirada em sistemas Unix.",
+    terminalDescription: "Se você é um entusiasta de terminais e comandos, essa é a opção para você! Explore o portfolio usando uma interface de linha de comando inspirada em sistemas Unix.",
     modalTitle: "Definir usuario da maquina",
     modalDescription: "Escolha o nome do usuario para entrar no ambiente selecionado.",
     avatarLabel: "Foto de perfil",

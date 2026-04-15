@@ -14,6 +14,7 @@ A aplicação usa Next.js (App Router), uma camada backend interna para comandos
 - Launchers de desktop sem sufixo `.app` (`terminal`, `dungeon4fun`).
 - Entrada raiz `README` no desktop/terminal que referencia o arquivo real `src/README.md`.
 - Runner externo (Docker) para clone sob demanda e leitura/build/run por projeto.
+- Comando `reclone` para resetar e preparar novamente o projeto atual no runner.
 - Limpeza automática de sessão de projeto por inatividade.
 
 ## Comandos suportados
@@ -29,11 +30,14 @@ A aplicação usa Next.js (App Router), uma camada backend interna para comandos
 | `vim <file>` | Abre visualização no modo de edição/simulação |
 | `make [args]` | Build de projeto via runner |
 | `run <exec> [args]` | Executa binário/arquivo via runner |
+| `reclone` | Recria o workspace do projeto atual no runner |
 | `pwd` | Mostra caminho atual |
 | `help` | Lista comandos |
 | `clear` | Limpa o terminal |
 | `gui` | Navega para o modo GUI |
 | `aboutme` | Texto de apresentação |
+
+Também é possível executar binários diretamente com `./<executavel> [args...]` dentro de um projeto preparado.
 
 ## Arquitetura
 

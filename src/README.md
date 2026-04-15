@@ -20,11 +20,17 @@ Portfólio interativo em formato de terminal, com modo Terminal e modo GUI, cons
 | `cd /` ou `cd ~` | Volta para home |
 | `cat <file>` | Mostra conteúdo de arquivo |
 | `view <file>` | Abre arquivo no visualizador markdown (popup) |
+| `vim <file>` | Abre arquivo no modo visualização/edição rápida |
+| `make [args]` | Build de projeto via runner |
+| `run <exec> [args]` | Executa binário/arquivo via runner |
+| `reclone` | Recria o workspace do projeto atual no runner |
 | `pwd` | Mostra caminho atual |
 | `help` | Lista comandos disponíveis |
 | `clear` | Limpa o terminal |
 | `gui` | Vai para modo GUI |
 | `aboutme` | Texto de apresentação |
+
+Também é possível executar binários diretamente com `./<executavel> [args...]` dentro de um projeto preparado.
 
 ## Arquitetura resumida
 

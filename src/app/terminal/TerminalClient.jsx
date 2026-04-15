@@ -40,11 +40,90 @@ export default function TerminalClient() {
     if (embedParam === "1") return false;
     return true;
   }, [searchParams]);
+  const autorunCommands = useMemo(() => {
+    const rawAutorun = searchParams.get("autorun");
+    if (!rawAutorun) return [];
+
+    try {
+      const parsed = JSON.parse(rawAutorun);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((command) => String(command || "").trim()).filter(Boolean);
+    } catch {
+      try {
+        const decoded = decodeURIComponent(rawAutorun);
+        const parsed = JSON.parse(decoded);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((command) => String(command || "").trim()).filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+  }, [searchParams]);
   const { state, actions } = useTerminalState({ initialPath, showWelcome });
   const inputRef = useRef(null);
   const commandRunningRef = useRef(false);
+  const hasExecutedAutorunRef = useRef(false);
   const router = useRouter();
   const promptText = `${userName}@portfolio:/${state.currentPath.join("/")}$`;
+
+  function normalizeTerminalOutputText(value) {
+    return String(value ?? "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t");
+  }
+
+  async function executeCommand(commandText, pathForCommand = state.currentPath) {
+    const lockInputForClone = shouldLockForClone(commandText);
+    if (lockInputForClone) actions.setCloneLoading(true);
+
+    const commandPromptSnapshot = `${userName}@portfolio:/${pathForCommand.join("/")}$`;
+    actions.appendCommand(commandPromptSnapshot, commandText);
+
+    try {
+      const result = await runShellCommand(commandText, pathForCommand);
+      const newLinesToAdd = [];
+
+      if (result.error) {
+        const normalizedError = normalizeTerminalOutputText(result.error);
+        newLinesToAdd.push(...normalizedError.split(/\r?\n/));
+      } else if (result?.type === "ls" && Array.isArray(result?.output)) {
+        newLinesToAdd.push({ type: "ls", entries: result.output });
+      } else if (result?.type !== "view" && result?.output && typeof result?.output === "string") {
+        const outputText = normalizeTerminalOutputText(result.output);
+        const outputLines = outputText.split(/\r?\n/);
+        newLinesToAdd.push(...outputLines);
+      }
+
+      if (result?.type === "view" && result?.output) {
+        actions.openViewer(result.output);
+      }
+
+      if (result?.newPath) {
+        actions.setCurrentPath(result.newPath);
+      }
+
+      if (result?.type === "clear") {
+        actions.clearLines();
+      }
+
+      if (result?.type === "gui") {
+        actions.setNavigateToGui(true);
+      }
+
+      if (result?.type !== "clear") {
+        actions.appendLines([...newLinesToAdd, { type: "gap" }]);
+      }
+
+      actions.pushHistory(commandText);
+      actions.setInput("");
+
+      return result;
+    } finally {
+      if (lockInputForClone) actions.setCloneLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (inputRef.current && !state.viewerOpen) {
@@ -79,47 +158,10 @@ export default function TerminalClient() {
       if (commandRunningRef.current) return;
 
       commandRunningRef.current = true;
-      const lockInputForClone = shouldLockForClone(state.input);
-      if (lockInputForClone) actions.setCloneLoading(true);
-
-      const commandPromptSnapshot = `${userName}@portfolio:/${state.currentPath.join("/")}$`;
-      actions.appendCommand(commandPromptSnapshot, state.input);
       try {
-        const result = await runShellCommand(state.input, state.currentPath);
-        const newLinesToAdd = [];
-
-        if (result.error) {
-          newLinesToAdd.push(result.error);
-        } else if (result?.type === "ls" && Array.isArray(result?.output)) {
-          newLinesToAdd.push({ type: "ls", entries: result.output });
-        } else if (result?.type !== "view" && result?.output && typeof result?.output === "string") {
-          const outputText = String(result.output).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-          const outputLines = outputText.split("\n");
-          newLinesToAdd.push(...outputLines);
-        }
-
-        if (result?.type === "view" && result?.output) {
-          actions.openViewer(result.output);
-        }
-        if (result?.newPath) {
-          actions.setCurrentPath(result.newPath);
-        }
-        if (result?.type === "clear") {
-          actions.clearLines();
-        }
-        if (result?.type === "gui") {
-          actions.setNavigateToGui(true);
-        }
-
-        if (result?.type !== "clear") {
-          actions.appendLines([...newLinesToAdd, { type: "gap" }]);
-        }
-
-        actions.pushHistory(state.input);
-        actions.setInput("");
+        await executeCommand(state.input, state.currentPath);
       } finally {
         commandRunningRef.current = false;
-        if (lockInputForClone) actions.setCloneLoading(false);
       }
     }
 
@@ -172,6 +214,32 @@ export default function TerminalClient() {
       }
     }
   }
+
+  useEffect(() => {
+    if (hasExecutedAutorunRef.current) return;
+    if (autorunCommands.length === 0) return;
+    if (commandRunningRef.current) return;
+
+    hasExecutedAutorunRef.current = true;
+
+    async function runAutorunQueue() {
+      commandRunningRef.current = true;
+      let pathCursor = initialPath;
+
+      try {
+        for (const commandText of autorunCommands) {
+          const result = await executeCommand(commandText, pathCursor);
+          if (Array.isArray(result?.newPath) && result.newPath.length > 0) {
+            pathCursor = result.newPath;
+          }
+        }
+      } finally {
+        commandRunningRef.current = false;
+      }
+    }
+
+    runAutorunQueue();
+  }, [actions, autorunCommands, executeCommand, initialPath]);
 
   return (
     <>

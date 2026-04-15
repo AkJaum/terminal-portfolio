@@ -51,6 +51,7 @@ Responsável por:
 - Entrada raiz `README` sem extensão, renderizada como markdown.
 - `README` da home virtual referenciando o arquivo real `src/README.md`.
 - Sessão de projeto com cleanup por inatividade (`PROJECT_IDLE_CLEANUP_MS`).
+- Comando `reclone` disponível no shell para resetar/preparar novamente o projeto atual no runner.
 
 ## 4) Decisões técnicas importantes
 

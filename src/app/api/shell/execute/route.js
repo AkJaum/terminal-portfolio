@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cdRuntime, catRuntime, lsRuntime, viewRuntime, vimRuntime, makeRuntime, runRuntime, pwd, help, clear, gui, aboutme } from "../../../../backend/core/terminal.service";
+import * as terminalService from "../../../../backend/core/terminal.service";
 
 export async function POST(req) {
   try {
@@ -15,19 +15,20 @@ export async function POST(req) {
 
     let result;
 
-    if (command === "ls") result = await lsRuntime(currentPath);
-    else if (command === "cat") result = await catRuntime(currentPath, args[0]);
-    else if (command === "cd") result = await cdRuntime(currentPath, args[0]);
-    else if (command === "make") result = await makeRuntime(currentPath, args);
-    else if (command === "run") result = await runRuntime(currentPath, args[0], args.slice(1));
-    else if (command.startsWith("./")) result = await runRuntime(currentPath, command, args);
-    else if (command === "pwd") result = pwd(null, currentPath);
-    else if (command === "help") result = help(args[0]);
-    else if (command === "clear") result = clear();
-    else if (command === "gui") result = gui();
-    else if (command === "aboutme") result = aboutme();
-    else if (command === "view") result = await viewRuntime(currentPath, args[0]);
-    else if (command === "vim") result = await vimRuntime(currentPath, args[0]);
+    if (command === "ls") result = await terminalService.lsRuntime(currentPath);
+    else if (command === "cat") result = await terminalService.catRuntime(currentPath, args[0]);
+    else if (command === "cd") result = await terminalService.cdRuntime(currentPath, args[0]);
+    else if (command === "make") result = await terminalService.makeRuntime(currentPath, args);
+    else if (command === "run") result = await terminalService.runRuntime(currentPath, args[0], args.slice(1));
+    else if (command === "reclone") result = await terminalService.recloneRuntime(currentPath);
+    else if (command.startsWith("./")) result = await terminalService.runRuntime(currentPath, command, args);
+    else if (command === "pwd") result = terminalService.pwd(null, currentPath);
+    else if (command === "help") result = terminalService.help(args[0]);
+    else if (command === "clear") result = terminalService.clear();
+    else if (command === "gui") result = terminalService.gui();
+    else if (command === "aboutme") result = terminalService.aboutme();
+    else if (command === "view") result = await terminalService.viewRuntime(currentPath, args[0]);
+    else if (command === "vim") result = await terminalService.vimRuntime(currentPath, args[0]);
     else result = { output: "comando não encontrado" };
 
     return NextResponse.json(result);

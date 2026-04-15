@@ -248,6 +248,28 @@ export async function runProjectExecutableAtPath(path, executable, args = []) {
   };
 }
 
+export async function resetProjectAtPath(path) {
+  const projectCtx = resolveProjectFromPath(path);
+  if (!projectCtx) {
+    throw new Error("comando disponível apenas dentro de projetos");
+  }
+
+  cancelProjectCleanup(projectCtx.projectId);
+
+  try {
+    await cleanupProjectNow(projectCtx.projectId);
+  } catch {
+    // if no prepared workspace exists yet, continue and prepare a fresh one
+  }
+
+  await ensureProjectPrepared(projectCtx.projectId);
+
+  return {
+    projectId: projectCtx.projectId,
+    success: true,
+  };
+}
+
 export function getStaticDir(path) {
   return getCurrentDir(filesystem, path);
 }

@@ -863,6 +863,35 @@ html, body {
     color: #243544;
 }
 
+:global(.explorerBreadcrumb) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:global(.explorerTestProjectButton) {
+    margin-left: auto;
+}
+
+:global(.explorerProjectActions) {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+:global(.explorerResetProjectButton) {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+}
+
 :global(.explorerToolbar button) {
     border: 1px solid #9aaab8;
     background: #eff3f7;

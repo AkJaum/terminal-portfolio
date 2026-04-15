@@ -10,13 +10,14 @@ import BrowserWindow from "../components/gui/BrowserWindow";
 import FileSystemNavigator from "../components/gui/FileSystemNavigator";
 import GameWindow from "../components/gui/GameWindow";
 import FileContentViewer from "../components/FileContentViewer";
+import { getProjectResetPlanForPath, getProjectTestPlanForPath } from "../lib/project-test-config";
 import style from "./guipage.module.css";
 
 const FULLSCREEN_PROMPT_DISMISSED_KEY = "gui-fullscreen-prompt-dismissed-v1";
 
 const SOCIAL_LINKS = {
   github: "https://github.com/akjaum",
-  linkedin: "https://www.linkedin.com",
+  linkedin: "https://www.linkedin.com/in/akjaum/",
 };
 
 export default function GUIClientPage() {
@@ -388,15 +389,22 @@ export default function GUIClientPage() {
     });
   }
 
-  function openTerminalWindow(initialPath = ["home"]) {
+  function openTerminalWindow(initialPath = ["home"], options = {}) {
     const safePath = Array.isArray(initialPath) && initialPath.length > 0 ? initialPath : ["home"];
     const pathLabel = safePath.join("/");
+    const safeRunCommands = Array.isArray(options?.runCommands)
+      ? options.runCommands.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
     const terminalParams = new URLSearchParams({
       path: pathLabel,
       embed: "1",
       welcome: "0",
       user: userName,
     });
+
+    if (safeRunCommands.length > 0) {
+      terminalParams.set("autorun", JSON.stringify(safeRunCommands));
+    }
 
     createProgramWindow({
       appType: "terminal",
@@ -409,6 +417,51 @@ export default function GUIClientPage() {
         initialPath: safePath,
       },
     });
+  }
+
+  function testProjectAtPath(path) {
+    const projectPlan = getProjectTestPlanForPath(path);
+    if (!projectPlan) return;
+
+    openTerminalWindow(path, {
+      runCommands: projectPlan.commands,
+    });
+  }
+
+  async function runCommandsAtPath(path, commands = []) {
+    const safePath = Array.isArray(path) && path.length > 0 ? path : ["home"];
+    const queue = Array.isArray(commands)
+      ? commands.map((command) => String(command || "").trim()).filter(Boolean)
+      : [];
+
+    for (const command of queue) {
+      const response = await fetch("/api/shell/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: command,
+          currentPath: safePath,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.error) {
+        throw new Error(payload?.error || `erro ao executar comando: ${command}`);
+      }
+    }
+  }
+
+  async function resetProjectAtPath(path) {
+    const projectPlan = getProjectResetPlanForPath(path);
+    if (!projectPlan) return false;
+
+    try {
+      await runCommandsAtPath(path, projectPlan.resetCommands);
+      return true;
+    } catch {
+      // intentionally silent here; reset action should not open terminal automatically
+      return false;
+    }
   }
 
   async function openDesktopFile(entry) {
@@ -707,6 +760,8 @@ export default function GUIClientPage() {
                   onPathChange={updateWindowPath}
                   onOpenFileProgram={openProgramFromExplorer}
                   onOpenTerminalAtPath={openTerminalWindow}
+                  onTestProjectAtPath={testProjectAtPath}
+                  onResetProjectAtPath={resetProjectAtPath}
                 />
               ) : windowItem.appType === "terminal" ? (
                 <EmbeddedAppWindow title={windowItem.title} url={windowItem.payload?.url} />

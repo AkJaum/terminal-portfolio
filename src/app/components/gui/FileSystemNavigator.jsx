@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getFileIcon } from "../../lib/file-icons";
 import FileContentViewer from "../FileContentViewer";
+import { getProjectResetPlanForPath, getProjectTestPlanForPath } from "../../lib/project-test-config";
 
 export default function FileSystemNavigator({
   windowId,
@@ -11,6 +12,8 @@ export default function FileSystemNavigator({
   onPathChange,
   onOpenFileProgram,
   onOpenTerminalAtPath,
+  onTestProjectAtPath,
+  onResetProjectAtPath,
 }) {
   const [currentPath, setCurrentPath] = useState(
     Array.isArray(initialPath) && initialPath.length > 0 ? initialPath : ["home"]
@@ -21,10 +24,36 @@ export default function FileSystemNavigator({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  const breadcrumb = useMemo(() => currentPath.join("/"), [currentPath]);
+  const projectTestPlan = useMemo(() => getProjectTestPlanForPath(currentPath), [currentPath]);
+  const projectResetPlan = useMemo(() => getProjectResetPlanForPath(currentPath), [currentPath]);
 
   function openTerminalAtPath(path) {
     if (!onOpenTerminalAtPath) return;
     onOpenTerminalAtPath(path);
+    setContextMenu(null);
+  }
+
+  function testProjectAtPath(path) {
+    if (!onTestProjectAtPath) return;
+    onTestProjectAtPath(path);
+    setContextMenu(null);
+  }
+
+  function isWebFile(fileName) {
+    return String(fileName || "").toLowerCase().endsWith(".web");
+  }
+
+  async function resetProjectAtPath(path) {
+    if (!onResetProjectAtPath) return;
+    const didReset = await onResetProjectAtPath(path);
+    if (didReset) {
+      setSelectedFile(null);
+      setPreviewData(null);
+      setRefreshTick((value) => value + 1);
+    }
     setContextMenu(null);
   }
 
@@ -66,7 +95,7 @@ export default function FileSystemNavigator({
     }
 
     loadDirectory();
-  }, [currentPath]);
+  }, [currentPath, refreshTick]);
 
   useEffect(() => {
     if (!initialFile) return;
@@ -74,8 +103,6 @@ export default function FileSystemNavigator({
     // initialFile is only used once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const breadcrumb = useMemo(() => currentPath.join("/"), [currentPath]);
 
   useEffect(() => {
     if (!onPathChange) return;
@@ -134,9 +161,7 @@ export default function FileSystemNavigator({
     }
   }
 
-  async function handleEntryDoubleClick(entry) {
-    if (entry.isDir) return;
-
+  async function openFileProgram(entry) {
     const payload = await openFile(entry.name);
     if (!payload || !onOpenFileProgram) return;
 
@@ -145,6 +170,11 @@ export default function FileSystemNavigator({
       fileName: entry.name,
       currentPath,
     });
+  }
+
+  async function handleEntryDoubleClick(entry) {
+    if (entry.isDir) return;
+    await openFileProgram(entry);
   }
 
   function openEntry(entry) {
@@ -156,7 +186,12 @@ export default function FileSystemNavigator({
       return;
     }
 
-    openFile(entry.name);
+    if (isWebFile(entry.name)) {
+      void openFileProgram(entry);
+      return;
+    }
+
+    void openFile(entry.name);
   }
 
   function handleRootContextMenu(event) {
@@ -217,7 +252,34 @@ export default function FileSystemNavigator({
             />
           </svg>
         </button>
-        <span>{breadcrumb}</span>
+        <span className="explorerBreadcrumb">{breadcrumb}</span>
+        {(projectResetPlan || projectTestPlan) ? (
+          <div className="explorerProjectActions">
+            {projectResetPlan ? (
+              <button
+                type="button"
+                className="explorerResetProjectButton"
+                onClick={() => {
+                  void resetProjectAtPath(currentPath);
+                }}
+                title="Resetar projeto (reclonar repositório)"
+                aria-label="Resetar projeto"
+              >
+                ↻
+              </button>
+            ) : null}
+            {projectTestPlan ? (
+              <button
+                type="button"
+                className="explorerTestProjectButton"
+                onClick={() => testProjectAtPath(currentPath)}
+                title={`Executa: ${projectTestPlan.commands.join(" -> ")}`}
+              >
+                Testar projeto
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="explorerLayout">
@@ -267,6 +329,26 @@ export default function FileSystemNavigator({
           >
             Abrir terminal nesta pasta
           </button>
+          {getProjectTestPlanForPath(contextMenu.path) ? (
+            <button
+              type="button"
+              className="explorerContextMenuItem"
+              onClick={() => testProjectAtPath(contextMenu.path)}
+            >
+              Testar projeto
+            </button>
+          ) : null}
+          {getProjectResetPlanForPath(contextMenu.path) ? (
+            <button
+              type="button"
+              className="explorerContextMenuItem"
+              onClick={() => {
+                void resetProjectAtPath(contextMenu.path);
+              }}
+            >
+              Resetar projeto
+            </button>
+          ) : null}
           <div className="explorerContextMenuHint">{contextMenu.label}</div>
         </div>
       ) : null}

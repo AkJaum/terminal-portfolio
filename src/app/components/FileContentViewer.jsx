@@ -47,7 +47,7 @@ export default function FileContentViewer({ fileData, emptyMessage, variant = "g
           title={fileData.file || "PDF"}
           style={{ width: "100%", minHeight: "62vh", border: "none", borderRadius: "8px", background: theme.surface }}
         />
-      ) : fileData.kind === "code" ? (
+      ) : fileData.kind === "web" ? null : fileData.kind === "code" ? (
         <VimLikeViewer fileName={fileData.file} content={fileData.content || ""} variant={variant} />
       ) : (
         <div style={{ color: theme.muted }}>

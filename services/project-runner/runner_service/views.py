@@ -101,6 +101,14 @@ def _truncate_output(value):
     return f"{truncated}\n\n[runner] saída truncada por limite de segurança"
 
 
+def _combine_process_output(stdout, stderr):
+    parts = [part for part in [stdout or "", stderr or ""] if part]
+    if not parts:
+        return ""
+
+    return "\n".join(parts)
+
+
 def _extract_client_id(request, body=None):
     header_id = request.headers.get("X-Client-Id", "").strip()
     if header_id:
@@ -619,7 +627,9 @@ def build_project(request):
                 cwd=target_dir,
                 timeout_ms=BUILD_TIMEOUT_MS,
             )
-            output = (result["stdout"] or "") + (result["stderr"] or "")
+            output = _combine_process_output(
+                result["stdout"], result["stderr"]
+            )
 
             return JsonResponse(
                 {
@@ -699,7 +709,9 @@ def run_project(request):
                 cwd=target_dir,
                 timeout_ms=RUN_TIMEOUT_MS,
             )
-            output = (result["stdout"] or "") + (result["stderr"] or "")
+            output = _combine_process_output(
+                result["stdout"], result["stderr"]
+            )
             command_suffix = f" {' '.join(safe_args)}" if safe_args else ""
 
             return JsonResponse(
