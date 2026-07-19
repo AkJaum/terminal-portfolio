@@ -17,10 +17,14 @@ services:
       - BUILD_TIMEOUT_MS=${BUILD_TIMEOUT_MS:-30000}
       - RUN_TIMEOUT_MS=${RUN_TIMEOUT_MS:-10000}
       - MAX_OUTPUT_BYTES=${MAX_OUTPUT_BYTES:-262144}
+      - MAX_PTY_BUFFER_BYTES=${MAX_PTY_BUFFER_BYTES:-524288}
+      - MAX_PTY_INPUT_BYTES=${MAX_PTY_INPUT_BYTES:-4096}
+      - PTY_MAX_LIFETIME_SECONDS=${PTY_MAX_LIFETIME_SECONDS:-300}
       - PROJECT_REPO_PUSH_SWAP=${PROJECT_REPO_PUSH_SWAP:-https://github.com/AkJaum/push_swap.git}
       - PROJECT_REPO_GET_NEXT_LINE=${PROJECT_REPO_GET_NEXT_LINE:-https://github.com/AkJaum/get_next_line.git}
       - PROJECT_REPO_PRINTF=${PROJECT_REPO_PRINTF:-https://github.com/AkJaum/ft_printf.git}
       - PROJECT_REPO_LIBFT=${PROJECT_REPO_LIBFT:-https://github.com/AkJaum/libft.git}
+      - PROJECT_REPO_A_MAZE_ING=${PROJECT_REPO_A_MAZE_ING:-https://github.com/AkJaum/a_maze.git}
     ports:
       - "${RUNNER_PORT:-8080}:8080"
     healthcheck:

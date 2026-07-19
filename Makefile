@@ -4,9 +4,6 @@ COMPOSE := docker compose
 RUNNER_SERVICE := project-runner
 APP_SERVICE := app
 RUNNER_URL_LOCAL := http://localhost:8080
-LOCAL_RUNNER_TOKEN ?= local-dev-runner-token
-LOCAL_DJANGO_SECRET ?= local-dev-django-secret
-COMPOSE_LOCAL_ENV := RUNNER_SHARED_TOKEN=$(LOCAL_RUNNER_TOKEN) DJANGO_SECRET_KEY=$(LOCAL_DJANGO_SECRET)
 
 .PHONY: help install dev dev-runner dev-runner-logs dev-down test build prod-up prod-down prod-logs runner-clean
 
@@ -28,34 +25,34 @@ install:
 	npm install
 
 dev-runner:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) up -d --build $(RUNNER_SERVICE)
+	$(COMPOSE) up -d --build $(RUNNER_SERVICE)
 
 dev:
-	-$(COMPOSE_LOCAL_ENV) $(COMPOSE) stop $(APP_SERVICE)
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) up -d --build $(RUNNER_SERVICE)
-	RUNNER_SHARED_TOKEN=$(LOCAL_RUNNER_TOKEN) PROJECT_RUNNER_URL=$(RUNNER_URL_LOCAL) PROJECT_IDLE_CLEANUP_MS=60000 npm run dev
+	-$(COMPOSE) stop $(APP_SERVICE)
+	$(COMPOSE) up -d --build $(RUNNER_SERVICE)
+	set -a; source .env; set +a; PROJECT_RUNNER_URL=$(RUNNER_URL_LOCAL) PROJECT_IDLE_CLEANUP_MS=60000 npm run dev
 
 dev-runner-logs:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) logs -f $(RUNNER_SERVICE)
+	$(COMPOSE) logs -f $(RUNNER_SERVICE)
 
 dev-down:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) down
+	$(COMPOSE) down
 
 test:
 	npm run build
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) config > /dev/null
+	$(COMPOSE) config > /dev/null
 
 build:
 	npm run build
 
 prod-up:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) up -d --build $(RUNNER_SERVICE) $(APP_SERVICE)
+	$(COMPOSE) up -d --build $(RUNNER_SERVICE) $(APP_SERVICE)
 
 prod-down:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) down
+	$(COMPOSE) down
 
 prod-logs:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) logs -f $(RUNNER_SERVICE) $(APP_SERVICE)
+	$(COMPOSE) logs -f $(RUNNER_SERVICE) $(APP_SERVICE)
 
 runner-clean:
-	$(COMPOSE_LOCAL_ENV) $(COMPOSE) exec -T $(RUNNER_SERVICE) sh -lc 'rm -rf /tmp/runner-workspaces/* || true'
+	$(COMPOSE) exec -T $(RUNNER_SERVICE) sh -lc 'rm -rf /tmp/runner-workspaces/* || true'

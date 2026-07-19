@@ -150,3 +150,34 @@ Benefícios:
 - Qualquer mudança no filesystem virtual deve validar GUI e terminal.
 - Evitar acoplamento de UI a detalhes de runner (manter BFF como fronteira).
 - Atualizar este arquivo ao fim de cada entrega relevante com decisões e trade-offs.
+
+## 9) Terminal reutilizável em outros portfólios
+
+O pacote `packages/project-terminal` separa a experiência de terminal da UI
+principal deste projeto. Ele fornece um modal React e um adaptador server-only
+para Next.js, mas mantém clone, leitura, build e execução no `project-runner`.
+
+Fluxo integrado:
+
+1. O site consumidor abre `ProjectTerminalModal` apenas para projetos com
+   configuração explícita de terminal.
+2. O modal cria um `sessionId` por abertura e envia comandos ao Route Handler
+   do próprio site consumidor.
+3. O Route Handler valida projeto, comando, alvo de build e executável antes de
+   encaminhar a operação com o segredo interno do runner.
+4. O runner usa `sessionId + projectId` como chave do workspace e remove apenas
+   a sessão correspondente quando o popup fecha.
+
+O modal usa uma área de trabalho dividida: o painel esquerdo recebe metadados
+tipados do projeto consumidor (imagem, links, descrição, funcionamento e guia
+rápido), enquanto o painel direito preserva a sessão interativa do terminal.
+
+Saídas comuns continuam passando pelo parser ANSI seguro baseado em spans
+React. Scripts Python marcados como interativos usam um PTY persistente: o
+browser consulta chunks a cada 45 ms, escreve as teclas no processo e aplica
+ANSI a uma grade de células com cursor, erase e scroll. O adaptador server-only
+continua responsável pela allowlist e nenhum comando passa por shell.
+
+O pacote não transforma o processo Django em uma sandbox forte por si só. Para
+tráfego público não confiável, a execução de cada job ainda deve migrar para um
+container ou microVM efêmero com limites de CPU, memória, PIDs e rede.
