@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import time
+from urllib.request import urlopen
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -98,6 +99,10 @@ PROJECTS = {
         ),
         "branch": os.getenv("PROJECT_BRANCH_LIBFT", "main"),
     },
+    "fly_in": {
+        "repoUrl": os.getenv("PROJECT_REPO_FLY_IN", "https://github.com/AkJaum/fly_in.git"),
+        "branch": os.getenv("PROJECT_BRANCH_FLY_IN", "main"),
+    },
 }
 
 CODE_EXTENSIONS = {
@@ -117,6 +122,9 @@ PTY_MANAGER = PtySessionManager(
     max_buffer_bytes=MAX_PTY_BUFFER_BYTES,
     max_lifetime_seconds=PTY_MAX_LIFETIME_SECONDS,
 )
+WEB_SESSIONS = {}
+FLY_IN_WEB_PORT = int(os.getenv("FLY_IN_WEB_PORT", "8081"))
+FLY_IN_WEB_URL = os.getenv("FLY_IN_WEB_URL", f"http://127.0.0.1:{FLY_IN_WEB_PORT}")
 
 
 def _safe_internal_error(message="erro interno do servidor"):
@@ -369,6 +377,43 @@ def _normalize_session_id(session_id):
 
 def _project_session_key(project_id, session_id=None):
     return f"{_normalize_session_id(session_id)}:{project_id}"
+
+
+def _active_fly_in_web_process():
+    process = WEB_SESSIONS.get("fly_in")
+    if process and process.poll() is None:
+        return process
+    WEB_SESSIONS.pop("fly_in", None)
+    return None
+
+
+def _start_fly_in_web(workdir):
+    if _active_fly_in_web_process():
+        return FLY_IN_WEB_URL
+
+    process = subprocess.Popen(
+        [
+            "python3", "-m", "src.web_app", "--map", "map.txt",
+            "--host", "0.0.0.0", "--port", str(FLY_IN_WEB_PORT),
+            "--no-open",
+        ],
+        cwd=str(workdir),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+    WEB_SESSIONS["fly_in"] = process
+    for _ in range(30):
+        if process.poll() is not None:
+            raise RuntimeError("the Fly-in visualizer failed to start")
+        try:
+            with urlopen(f"http://127.0.0.1:{FLY_IN_WEB_PORT}", timeout=0.25):
+                return FLY_IN_WEB_URL
+        except Exception:
+            time.sleep(0.2)
+    process.terminate()
+    WEB_SESSIONS.pop("fly_in", None)
+    raise RuntimeError("the Fly-in visualizer did not become ready")
 
 
 def _ensure_project_prepared(project_id, session_id=None):
@@ -723,6 +768,26 @@ def build_project(request):
             if rejection is not None:
                 return rejection
 
+            safe_args = [arg.strip() for arg in args if arg.strip()]
+            if project_id == "fly_in" and safe_args == ["web"]:
+                if _active_fly_in_web_process():
+                    return JsonResponse(
+                        {"ok": True, "projectId": project_id, "webUrl": FLY_IN_WEB_URL}
+                    )
+
+                rel_path = _sanitize_relative_path(body.get("path", []))
+                workdir = _ensure_project_prepared(
+                    project_id, body.get("sessionId")
+                )
+                if not _resolve_inside_workdir(workdir, rel_path).is_dir():
+                    return _json_error("não é um diretório")
+                url = _start_fly_in_web(
+                    workdir
+                )
+                return JsonResponse(
+                    {"ok": True, "projectId": project_id, "webUrl": url}
+                )
+
             rel_path = _sanitize_relative_path(body.get("path", []))
             workdir = _ensure_project_prepared(
                 project_id, body.get("sessionId")
@@ -730,8 +795,6 @@ def build_project(request):
             target_dir = _resolve_inside_workdir(workdir, rel_path)
             if not target_dir.exists() or not target_dir.is_dir():
                 return _json_error("não é um diretório")
-
-            safe_args = [arg.strip() for arg in args if arg.strip()]
             result = _run_command(
                 ["make", *safe_args],
                 cwd=target_dir,
@@ -1053,6 +1116,9 @@ def cleanup_project(request):
                 existing = PROJECT_SESSIONS.get(session_key)
                 if not existing:
                     return JsonResponse({"ok": True, "deleted": None})
+
+                if project_id == "fly_in" and _active_fly_in_web_process():
+                    return JsonResponse({"ok": True, "deleted": None, "retained": existing})
 
                 shutil.rmtree(existing, ignore_errors=True)
                 PROJECT_SESSIONS.pop(session_key, None)

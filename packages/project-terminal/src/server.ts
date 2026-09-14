@@ -3,6 +3,7 @@ export type RunnerProjectConfig = {
   executables?: string[];
   pythonScripts?: Record<string, { interactive?: boolean; stdin?: string }>;
   runnerProjectId: string;
+  webTarget?: string;
 };
 
 export type ProjectTerminalHandlerConfig = {
@@ -233,6 +234,9 @@ export function createProjectTerminalHandlers(config: ProjectTerminalHandlerConf
           path: currentPath,
           args,
         });
+        if (project.webTarget && args.length === 1 && args[0] === project.webTarget && typeof payload.webUrl === "string") {
+          return json({ type: "web", url: payload.webUrl });
+        }
         return json({
           type: "output",
           output: `${payload.output || ""}\n[make] exit code: ${payload.exitCode}`.trim(),

@@ -25,7 +25,8 @@ type TerminalResponse = {
   output?: string | TerminalEntry[];
   outputBase64?: string;
   running?: boolean;
-  type?: "clear" | "ls" | "output" | "process" | "process-input";
+  type?: "clear" | "ls" | "output" | "process" | "process-input" | "web";
+  url?: string;
 };
 
 type TerminalLine = {
@@ -103,6 +104,7 @@ export function ProjectTerminalModal({
   const [lines, setLines] = useState<TerminalLine[]>([]);
   const [processActive, setProcessActive] = useState(false);
   const [screenVisible, setScreenVisible] = useState(false);
+  const [webUrl, setWebUrl] = useState("");
   const [screenVersion, setScreenVersion] = useState(0);
   const decoderRef = useRef(new TextDecoder());
   const inputQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -160,7 +162,9 @@ export function ProjectTerminalModal({
         rows: terminalRows,
       });
 
-      if (payload.type === "clear") {
+      if (payload.type === "web" && payload.url) {
+        setWebUrl(payload.url);
+      } else if (payload.type === "clear") {
         setLines([]);
       } else if (payload.type === "ls" && Array.isArray(payload.output)) {
         appendLine(
@@ -283,6 +287,7 @@ export function ProjectTerminalModal({
     setLines([]);
     setProcessActive(false);
     setScreenVisible(false);
+    setWebUrl("");
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -450,6 +455,7 @@ export function ProjectTerminalModal({
           </aside>
 
           <div className="ak-terminal-modal__screen" onClick={() => inputRef.current?.focus()}>
+            {webUrl ? <iframe title={`${projectTitle} visualizer`} src={webUrl} className="ak-terminal-modal__web-frame" /> : <>
             <div className="ak-terminal-modal__output" aria-live="polite">
               <p className="ak-terminal-modal__welcome">
                 {labels.welcome} <strong>{projectTitle}</strong>. {labels.helpHint} <code>help</code>.
@@ -496,6 +502,7 @@ export function ProjectTerminalModal({
               />
               {busy && <span className="ak-terminal-modal__busy">{labels.loading}</span>}
             </form>
+            </>}
           </div>
         </div>
       </section>

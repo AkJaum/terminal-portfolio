@@ -16,6 +16,8 @@ A aplicação usa Next.js (App Router), uma camada backend interna para comandos
 - Runner externo (Docker) para clone sob demanda e leitura/build/run por projeto.
 - Comando `reclone` para resetar e preparar novamente o projeto atual no runner.
 - Limpeza automática de sessão de projeto por inatividade.
+- O visualizador web do Fly-in é um serviço compartilhado: `make web` reabre o
+  visualizador já ativo após fechar e abrir o terminal, sem iniciar outra porta.
 
 ## Comandos suportados
 
